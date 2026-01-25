@@ -23,6 +23,8 @@ type alias Colors =
     , activeTabText : String
     , inactiveTabText : String
     , successBg : String
+    , inputBg : String
+    , mutedText : String
     }
 
 
@@ -46,6 +48,8 @@ lightColors =
     , activeTabText = "#CFB793" -- Warm beige/gold
     , inactiveTabText = "#B3B3B3" -- Dark grey
     , successBg = "#48bb78" -- Green (keeping original for consistency)
+    , inputBg = "#FFFFFF" -- White for inputs
+    , mutedText = "#6B7280" -- Muted grey for secondary text
     }
 
 
@@ -69,6 +73,8 @@ darkColors =
     , activeTabText = "#E8D5BB" -- Lighter warm beige
     , inactiveTabText = "#8B9AAB" -- Muted blue-grey
     , successBg = "#4CAF50" -- Green
+    , inputBg = "#0f1419" -- Very dark for inputs
+    , mutedText = "#8B9AAB" -- Muted blue-grey for secondary text
     }
 
 

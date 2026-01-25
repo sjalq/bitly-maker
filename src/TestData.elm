@@ -15,6 +15,8 @@ defaultUsers =
           , { email = "sys@admin.com"
             , name = Just "System Administrator"
             , preferences = { darkMode = True }
+            , clients = []
+            , nextClientId = 1
             }
           )
         ]

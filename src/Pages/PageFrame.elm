@@ -1,7 +1,5 @@
 module Pages.PageFrame exposing (..)
 
--- Import the new Theme module
-
 import Components.AuthControls
 import Components.Header
 import Components.Tab
@@ -9,7 +7,6 @@ import Html exposing (..)
 import Html.Attributes as Attr
 import Pages.Admin
 import Pages.Default
-import Pages.Examples
 import Route
 import Theme
 import Types exposing (..)
@@ -26,7 +23,6 @@ viewTabs model =
 
         baseTabs =
             [ { label = "Home", href = Route.toString Default, isActive = model.currentRoute == Default, colors = colors }
-            , { label = "Examples", href = Route.toString Examples, isActive = model.currentRoute == Examples, colors = colors }
             ]
 
         adminTabs =
@@ -53,8 +49,8 @@ viewTabs model =
             [ div [ Attr.class "flex flex-col lg:flex-row lg:items-start lg:justify-between" ]
                 [ div [ Attr.class "text-center lg:text-left mb-4 lg:mb-0" ]
                     [ Components.Header.view
-                        { title = "Starter Project Dashboard"
-                        , subtitle = Just "Your starting point"
+                        { title = "Bitly UTM Maker"
+                        , subtitle = Just "Create shortened links with UTM tracking"
                         , colors = colors
                         , size = Components.Header.Large
                         }
@@ -111,9 +107,6 @@ viewCurrentPage model =
 
             Admin _ ->
                 Pages.Admin.view model colors
-
-            Examples ->
-                Pages.Examples.view model colors
 
             NotFound ->
                 viewNotFoundPage colors

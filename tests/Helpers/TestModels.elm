@@ -21,6 +21,8 @@ anonymousUser =
     { email = "anon@example.com"
     , name = Nothing
     , preferences = defaultPreferences
+    , clients = []
+    , nextClientId = 1
     }
 
 
@@ -29,6 +31,8 @@ regularUser =
     { email = "user@example.com"
     , name = Just "Regular User"
     , preferences = defaultPreferences
+    , clients = []
+    , nextClientId = 1
     }
 
 
@@ -37,6 +41,8 @@ sysAdminUser =
     { email = "sys@admin.com"
     , name = Just "System Administrator"
     , preferences = defaultPreferences
+    , clients = []
+    , nextClientId = 1
     }
 
 

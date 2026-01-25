@@ -42,6 +42,16 @@ actionRoleMap msg =
         A _ ->
             Anonymous
 
+        -- User actions - handled separately in updateFromFrontendCheckingRights
+        AddClientToBackend _ _ ->
+            UserRole
+
+        DeleteClientToBackend _ ->
+            UserRole
+
+        ShortenUrlToBackend _ _ _ ->
+            UserRole
+
 
 
 -- Allow anyone to send websocket messages

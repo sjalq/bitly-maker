@@ -15,10 +15,8 @@ import Html.Events as HE
 import Lamdera
 import Pages.Admin
 import Pages.Default
-import Pages.Examples
 import Pages.PageFrame exposing (viewCurrentPage, viewTabs)
 import Ports.Clipboard
-import Ports.ConsoleLogger
 import Route
 import Task
 import Theme
@@ -101,6 +99,24 @@ init url key =
                 }
             , profileDropdownOpen = False
             , loginModalOpen = False
+
+            -- UTM Builder state
+            , clients = []
+            , selectedClientId = Nothing
+            , destinationUrl = ""
+            , utmSource = ""
+            , utmMedium = ""
+            , utmCampaign = ""
+            , utmTerm = ""
+            , utmContent = ""
+            , shortenResult = Nothing
+            , isShortening = False
+
+            -- Client management
+            , newClientName = ""
+            , newClientApiKey = ""
+            , clientFormError = Nothing
+            , showClientManager = False
             }
     in
     inits model route
@@ -116,10 +132,6 @@ inits model route =
         Default ->
             Pages.Default.init model
                 |> Tuple.mapSecond (Command.fromCmd "Default.init")
-
-        Examples ->
-            Pages.Examples.init model
-                |> Tuple.mapSecond (Command.fromCmd "Examples.init")
 
         _ ->
             ( model, Command.none )
@@ -242,17 +254,91 @@ update msg model =
             in
             ( { model | emailPasswordForm = updatedForm, loginModalOpen = True }, Command.none )
 
-        ConsoleLogClicked ->
-            ( model, Command.fromCmd "ConsoleLog" (Ports.ConsoleLogger.log "Hello from Elm!") )
-
-        ConsoleLogReceived message ->
-            ( model, Command.none )
-
         CopyToClipboard text ->
             ( model, Command.fromCmd "Clipboard" (Ports.Clipboard.copyToClipboard text) )
 
         ClipboardResult result ->
             ( model, Command.none )
+
+        -- UTM Builder messages
+        SelectClient maybeId ->
+            ( { model | selectedClientId = maybeId }, Command.none )
+
+        DestinationUrlChanged url ->
+            ( { model | destinationUrl = url }, Command.none )
+
+        UtmSourceChanged value ->
+            ( { model | utmSource = value }, Command.none )
+
+        UtmMediumChanged value ->
+            ( { model | utmMedium = value }, Command.none )
+
+        UtmCampaignChanged value ->
+            ( { model | utmCampaign = value }, Command.none )
+
+        UtmTermChanged value ->
+            ( { model | utmTerm = value }, Command.none )
+
+        UtmContentChanged value ->
+            ( { model | utmContent = value }, Command.none )
+
+        CreateShortLink ->
+            case model.selectedClientId of
+                Just clientId ->
+                    if String.isEmpty (String.trim model.destinationUrl) then
+                        ( model, Command.none )
+
+                    else
+                        let
+                            utmParams =
+                                { source = model.utmSource
+                                , medium = model.utmMedium
+                                , campaign = model.utmCampaign
+                                , term = model.utmTerm
+                                , content = model.utmContent
+                                }
+                        in
+                        ( { model | isShortening = True, shortenResult = Nothing }
+                        , Effect.Lamdera.sendToBackend (ShortenUrlToBackend clientId model.destinationUrl utmParams)
+                        )
+
+                Nothing ->
+                    ( model, Command.none )
+
+        ClearForm ->
+            ( { model
+                | destinationUrl = ""
+                , utmSource = ""
+                , utmMedium = ""
+                , utmCampaign = ""
+                , utmTerm = ""
+                , utmContent = ""
+                , shortenResult = Nothing
+              }
+            , Command.none
+            )
+
+        -- Client management messages
+        NewClientNameChanged name ->
+            ( { model | newClientName = name, clientFormError = Nothing }, Command.none )
+
+        NewClientApiKeyChanged key ->
+            ( { model | newClientApiKey = key, clientFormError = Nothing }, Command.none )
+
+        AddClient ->
+            if String.isEmpty (String.trim model.newClientName) || String.isEmpty (String.trim model.newClientApiKey) then
+                ( { model | clientFormError = Just "Please enter both name and API key" }, Command.none )
+
+            else
+                ( { model | newClientName = "", newClientApiKey = "", clientFormError = Nothing }
+                , Effect.Lamdera.sendToBackend (AddClientToBackend model.newClientName model.newClientApiKey)
+                )
+
+        DeleteClient clientId ->
+            ( model, Effect.Lamdera.sendToBackend (DeleteClientToBackend clientId) )
+
+        ToggleClientManager ->
+            ( { model | showClientManager = not model.showClientManager }, Command.none )
 
 
 
@@ -303,7 +389,18 @@ updateFromBackend msg model =
                     ( { model | login = NotLogged False, pendingAuth = False, preferences = { darkMode = True } }, Command.none )
 
         UserDataToFrontend currentUser ->
-            ( { model | currentUser = Just currentUser, preferences = currentUser.preferences }, Command.none )
+            ( { model | currentUser = Just currentUser, preferences = currentUser.preferences, clients = currentUser.clients }, Command.none )
+
+        ClientsUpdated clients ->
+            ( { model | clients = clients }, Command.none )
+
+        ShortenUrlResult result ->
+            case result of
+                Ok shortenResult ->
+                    ( { model | shortenResult = Just shortenResult, isShortening = False }, Command.none )
+
+                Err errorMsg ->
+                    ( { model | isShortening = False, clientFormError = Just errorMsg }, Command.none )
 
         -- Admin_FusionResponse value ->
         --     ( { model | fusionState = value }, Command.none )
@@ -322,7 +419,7 @@ view model =
         colors =
             Theme.getColors model.preferences.darkMode
     in
-    { title = "Dashboard"
+    { title = "Bitly UTM Maker"
     , body =
         [ div
             [ Theme.primaryBg model.preferences.darkMode

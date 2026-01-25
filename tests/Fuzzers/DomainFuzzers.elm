@@ -22,7 +22,7 @@ routeFuzzer =
     Fuzz.oneOf
         [ Fuzz.constant Default
         , Fuzz.map Admin adminRouteFuzzer
-        , Fuzz.constant Examples
+        , Fuzz.constant NotFound
         ]
 
 

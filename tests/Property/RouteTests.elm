@@ -26,10 +26,6 @@ suite =
                 \_ ->
                     Route.toString (Admin AdminDefault)
                         |> Expect.equal "/admin"
-            , test "Examples produces /examples" <|
-                \_ ->
-                    Route.toString Examples
-                        |> Expect.equal "/examples"
             , test "NotFound produces /not-found" <|
                 \_ ->
                     Route.toString NotFound
@@ -46,11 +42,6 @@ suite =
                     makeUrl "/admin"
                         |> Route.fromUrl
                         |> Expect.equal (Admin AdminDefault)
-            , test "parses /examples as Examples" <|
-                \_ ->
-                    makeUrl "/examples"
-                        |> Route.fromUrl
-                        |> Expect.equal Examples
             , test "parses unknown paths as NotFound" <|
                 \_ ->
                     makeUrl "/unknown-path"
@@ -67,9 +58,6 @@ suite =
             , test "Admin AdminFetchModel survives round-trip" <|
                 \_ ->
                     expectRouteRoundTrip (Admin AdminFetchModel)
-            , test "Examples survives round-trip" <|
-                \_ ->
-                    expectRouteRoundTrip Examples
             , fuzz adminLogsParamsFuzzer "AdminLogs params survive round-trip" <|
                 \params ->
                     let

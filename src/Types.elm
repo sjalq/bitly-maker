@@ -1,4 +1,4 @@
-module Types exposing (AdminLogsUrlParams, AdminPageModel, AdminRoute(..), BackendModel, BackendMsg(..), BrowserCookie, ConnectionId, Email, EmailPasswordAuthMsg(..), EmailPasswordAuthResult(..), EmailPasswordAuthToBackend(..), EmailPasswordCredentials, EmailPasswordFormModel, EmailPasswordFormMsg(..), FrontendModel, FrontendMsg(..), LoginState(..), PollData, PollingStatus(..), PollingToken, Preferences, Role(..), Route(..), ToBackend(..), ToFrontend(..), User, UserFrontend)
+module Types exposing (AdminLogsUrlParams, AdminPageModel, AdminRoute(..), BackendModel, BackendMsg(..), BitlyClient, BitlyClientId, BrowserCookie, ConnectionId, Email, EmailPasswordAuthMsg(..), EmailPasswordAuthResult(..), EmailPasswordAuthToBackend(..), EmailPasswordCredentials, EmailPasswordFormModel, EmailPasswordFormMsg(..), FrontendModel, FrontendMsg(..), LoginState(..), PollData, PollingStatus(..), PollingToken, Preferences, Role(..), Route(..), ShortenResult, ToBackend(..), ToFrontend(..), UtmParams, User, UserFrontend)
 
 import Auth.Common
 import Browser exposing (UrlRequest)
@@ -29,7 +29,6 @@ type alias BrowserCookie =
 type Route
     = Default
     | Admin AdminRoute
-    | Examples
     | NotFound
 
 
@@ -66,12 +65,28 @@ type alias FrontendModel =
     , login : LoginState
     , currentUser : Maybe UserFrontend
     , pendingAuth : Bool
-
-    -- , fusionState : Fusion.Value
     , preferences : Preferences
     , emailPasswordForm : EmailPasswordFormModel
     , profileDropdownOpen : Bool
     , loginModalOpen : Bool
+
+    -- UTM Builder state
+    , clients : List BitlyClient
+    , selectedClientId : Maybe BitlyClientId
+    , destinationUrl : String
+    , utmSource : String
+    , utmMedium : String
+    , utmCampaign : String
+    , utmTerm : String
+    , utmContent : String
+    , shortenResult : Maybe ShortenResult
+    , isShortening : Bool
+
+    -- Client management
+    , newClientName : String
+    , newClientApiKey : String
+    , clientFormError : Maybe String
+    , showClientManager : Bool
     }
 
 
@@ -144,10 +159,24 @@ type FrontendMsg
     | ToggleLoginModal
     | CloseLoginModal
     | EmailPasswordAuthError String
-    | ConsoleLogClicked
-    | ConsoleLogReceived String
     | CopyToClipboard String
     | ClipboardResult (Result String String)
+      -- UTM Builder
+    | SelectClient (Maybe BitlyClientId)
+    | DestinationUrlChanged String
+    | UtmSourceChanged String
+    | UtmMediumChanged String
+    | UtmCampaignChanged String
+    | UtmTermChanged String
+    | UtmContentChanged String
+    | CreateShortLink
+    | ClearForm
+      -- Client Management
+    | NewClientNameChanged String
+    | NewClientApiKeyChanged String
+    | AddClient
+    | DeleteClient BitlyClientId
+    | ToggleClientManager
 
 
 
@@ -167,6 +196,11 @@ type ToBackend
     | LoggedOut
     | NoOpToBackend
     | SetDarkModePreference Bool
+      -- Client Management
+    | AddClientToBackend String String -- name, apiKey
+    | DeleteClientToBackend BitlyClientId
+      -- URL Shortening
+    | ShortenUrlToBackend BitlyClientId String UtmParams -- clientId, url, utm params
 
 
 
@@ -181,10 +215,8 @@ type BackendMsg
     | GotRemoteModel (Result Http.Error BackendModel)
     | AuthBackendMsg Auth.Common.BackendMsg
     | EmailPasswordAuthResult EmailPasswordAuthResult
-    | GotJobTime PollingToken Int
-      -- example to show polling mechanism
-    | GotCryptoPriceResult PollingToken (Result Http.Error String)
-    | StoreTaskResult PollingToken (Result String String)
+      -- Bitly API response
+    | GotBitlyResponse ConnectionId (Result Http.Error String) String -- clientId, result, utmUrl
 
 
 type ToFrontend
@@ -196,6 +228,10 @@ type ToFrontend
     | PermissionDenied ToBackend
     | UserDataToFrontend UserFrontend
     | UserInfoMsg (Maybe Auth.Common.UserInfo)
+      -- Client Management
+    | ClientsUpdated (List BitlyClient)
+      -- URL Shortening
+    | ShortenUrlResult (Result String ShortenResult)
 
 
 
@@ -206,10 +242,38 @@ type alias Email =
     String
 
 
+type alias BitlyClientId =
+    Int
+
+
+type alias BitlyClient =
+    { id : BitlyClientId
+    , name : String
+    , apiKey : String
+    }
+
+
+type alias UtmParams =
+    { source : String
+    , medium : String
+    , campaign : String
+    , term : String
+    , content : String
+    }
+
+
+type alias ShortenResult =
+    { utmUrl : String
+    , shortUrl : String
+    }
+
+
 type alias User =
     { email : Email
     , name : Maybe String
     , preferences : Preferences
+    , clients : List BitlyClient
+    , nextClientId : BitlyClientId
     }
 
 
@@ -218,6 +282,7 @@ type alias UserFrontend =
     , isSysAdmin : Bool
     , role : String
     , preferences : Preferences
+    , clients : List BitlyClient
     }
 
 

@@ -105,7 +105,12 @@ completeSignup browserCookie connectionId email _ maybeName salt hash model =
             { darkMode = True }
 
         user =
-            { email = email, name = maybeName, preferences = initialPreferences }
+            { email = email
+            , name = maybeName
+            , preferences = initialPreferences
+            , clients = []
+            , nextClientId = 1
+            }
 
         userInfo =
             { email = email, name = maybeName, username = Nothing, picture = Nothing }

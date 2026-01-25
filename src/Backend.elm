@@ -1,8 +1,5 @@
 module Backend exposing (Model, app, init, update, updateFromFrontendCheckingRights, subscriptions)
 
--- import Fusion.Generated.Types
--- import Fusion.Patch
-
 import Auth.EmailPasswordAuth as EmailPasswordAuth
 import Auth.Flow
 import Dict
@@ -10,6 +7,9 @@ import Effect.Command as Command exposing (BackendOnly, Command)
 import Effect.Lamdera
 import Effect.Subscription as Subscription exposing (Subscription)
 import Env
+import Http
+import Json.Decode as Decode
+import Json.Encode as Encode
 import Lamdera
 import Logger
 import Rights.Auth0 exposing (backendConfig)
@@ -20,6 +20,7 @@ import Supplemental exposing (..)
 import Task
 import TestData
 import Types exposing (..)
+import Url
 
 
 type alias Model =
@@ -93,45 +94,28 @@ update msg model =
                     EmailPasswordAuth.completeSignup browserCookie connectionId email password maybeName salt hash model
                         |> Tuple.mapSecond (Command.fromCmd "EmailPasswordAuth")
 
-        GotCryptoPriceResult token result ->
+        GotBitlyResponse clientId result utmUrl ->
             case result of
-                Ok priceStr ->
-                    let
-                        updatedPollingJobs =
-                            Dict.insert token (Ready (Ok priceStr)) model.pollingJobs
-                    in
-                    Logger.logInfo ("Crypto price calculated: " ++ priceStr) GotLogTime ( { model | pollingJobs = updatedPollingJobs }, Cmd.none )
-                        |> wrapLogCmd
+                Ok responseBody ->
+                    -- Parse the Bitly response to get the short URL
+                    case Decode.decodeString bitlyResponseDecoder responseBody of
+                        Ok shortUrl ->
+                            ( model
+                            , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString clientId)
+                                (ShortenUrlResult (Ok { utmUrl = utmUrl, shortUrl = shortUrl }))
+                            )
 
-                Err err ->
-                    let
-                        updatedPollingJobs =
-                            Dict.insert token (Ready (Err (httpErrorToString err))) model.pollingJobs
-                    in
-                    Logger.logError ("Failed to calculate crypto price: " ++ httpErrorToString err) GotLogTime ( { model | pollingJobs = updatedPollingJobs }, Cmd.none )
-                        |> wrapLogCmd
+                        Err err ->
+                            ( model
+                            , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString clientId)
+                                (ShortenUrlResult (Err ("Failed to parse Bitly response: " ++ Decode.errorToString err)))
+                            )
 
-        StoreTaskResult token result ->
-            let
-                updatedPollingJobs =
-                    Dict.insert token (Ready result) model.pollingJobs
-            in
-            case result of
-                Ok _ ->
-                    Logger.logInfo ("Task completed successfully: " ++ token) GotLogTime ( { model | pollingJobs = updatedPollingJobs }, Cmd.none )
-                        |> wrapLogCmd
-
-                Err err ->
-                    Logger.logError ("Task failed: " ++ token ++ " - " ++ err) GotLogTime ( { model | pollingJobs = updatedPollingJobs }, Cmd.none )
-                        |> wrapLogCmd
-
-        GotJobTime token timestamp ->
-            let
-                updatedPollingJobs =
-                    Dict.insert token (BusyWithTime timestamp) model.pollingJobs
-            in
-            Logger.logDebug ("Updated job " ++ token ++ " with timestamp: " ++ String.fromInt timestamp) GotLogTime ( { model | pollingJobs = updatedPollingJobs }, Cmd.none )
-                |> wrapLogCmd
+                Err httpErr ->
+                    ( model
+                    , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString clientId)
+                        (ShortenUrlResult (Err (httpErrorToString httpErr)))
+                    )
 
 
 {-| Helper to wrap Logger Cmd results into Command
@@ -253,12 +237,85 @@ updateFromFrontend sessionId clientId msg model =
             -- Echo websocket message back to frontend
             ( model, Effect.Lamdera.sendToFrontend clientId (A0 ("Echo: " ++ message)) )
 
+        AddClientToBackend name apiKey ->
+            case getUserFromCookie browserCookie model of
+                Just user ->
+                    let
+                        newClient =
+                            { id = user.nextClientId
+                            , name = name
+                            , apiKey = apiKey
+                            }
+
+                        updatedUser =
+                            { user
+                                | clients = user.clients ++ [ newClient ]
+                                , nextClientId = user.nextClientId + 1
+                            }
+
+                        updatedUsers =
+                            Dict.insert user.email updatedUser model.users
+                    in
+                    ( { model | users = updatedUsers }
+                    , Effect.Lamdera.sendToFrontend clientId (ClientsUpdated updatedUser.clients)
+                    )
+
+                Nothing ->
+                    ( model, Command.none )
+
+        DeleteClientToBackend clientIdToDelete ->
+            case getUserFromCookie browserCookie model of
+                Just user ->
+                    let
+                        updatedClients =
+                            List.filter (\c -> c.id /= clientIdToDelete) user.clients
+
+                        updatedUser =
+                            { user | clients = updatedClients }
+
+                        updatedUsers =
+                            Dict.insert user.email updatedUser model.users
+                    in
+                    ( { model | users = updatedUsers }
+                    , Effect.Lamdera.sendToFrontend clientId (ClientsUpdated updatedClients)
+                    )
+
+                Nothing ->
+                    ( model, Command.none )
+
+        ShortenUrlToBackend selectedClientId url utmParams ->
+            case getUserFromCookie browserCookie model of
+                Just user ->
+                    case List.filter (\c -> c.id == selectedClientId) user.clients |> List.head of
+                        Just client ->
+                            let
+                                utmUrl =
+                                    buildUtmUrl url utmParams
+
+                                cmd =
+                                    shortenWithBitly connectionId client.apiKey utmUrl
+                            in
+                            ( model, cmd )
+
+                        Nothing ->
+                            ( model
+                            , Effect.Lamdera.sendToFrontend clientId (ShortenUrlResult (Err "Client not found"))
+                            )
+
+                Nothing ->
+                    ( model
+                    , Effect.Lamdera.sendToFrontend clientId (ShortenUrlResult (Err "Not logged in"))
+                    )
+
 
 updateFromFrontendCheckingRights : Effect.Lamdera.SessionId -> Effect.Lamdera.ClientId -> ToBackend -> Model -> ( Model, Command BackendOnly ToFrontend BackendMsg )
 updateFromFrontendCheckingRights sessionId clientId msg model =
     let
         browserCookie =
             Effect.Lamdera.sessionIdToString sessionId
+
+        isLoggedIn =
+            Dict.member browserCookie model.sessions
     in
     if
         case msg of
@@ -281,6 +338,18 @@ updateFromFrontendCheckingRights sessionId clientId msg model =
                 -- Allow everyone to set their own preference
                 True
 
+            AddClientToBackend _ _ ->
+                -- Only logged in users can add clients
+                isLoggedIn
+
+            DeleteClientToBackend _ ->
+                -- Only logged in users can delete clients
+                isLoggedIn
+
+            ShortenUrlToBackend _ _ _ ->
+                -- Only logged in users can shorten URLs
+                isLoggedIn
+
             _ ->
                 sessionCanPerformAction model browserCookie msg
     then
@@ -302,6 +371,7 @@ userToFrontend user =
     , isSysAdmin = isSysAdmin user
     , role = getUserRole user |> roleToString
     , preferences = user.preferences
+    , clients = user.clients
     }
 
 
@@ -313,3 +383,70 @@ handleEmailPasswordAuth browserCookie connectionId authMsg model =
 
         EmailPasswordSignupToBackend email password maybeName ->
             EmailPasswordAuth.handleSignup browserCookie connectionId email password maybeName model
+
+
+
+-- UTM URL Building
+
+
+buildUtmUrl : String -> UtmParams -> String
+buildUtmUrl baseUrl params =
+    let
+        -- Parse the base URL to handle existing query params
+        utmQueryParams =
+            [ ( "utm_source", params.source )
+            , ( "utm_medium", params.medium )
+            , ( "utm_campaign", params.campaign )
+            , ( "utm_term", params.term )
+            , ( "utm_content", params.content )
+            ]
+                |> List.filter (\( _, v ) -> not (String.isEmpty (String.trim v)))
+                |> List.map (\( k, v ) -> Url.percentEncode k ++ "=" ++ Url.percentEncode v)
+                |> String.join "&"
+
+        separator =
+            if String.contains "?" baseUrl then
+                "&"
+
+            else
+                "?"
+    in
+    if String.isEmpty utmQueryParams then
+        baseUrl
+
+    else
+        baseUrl ++ separator ++ utmQueryParams
+
+
+
+-- Bitly API Integration
+
+
+shortenWithBitly : ConnectionId -> String -> String -> Command BackendOnly ToFrontend BackendMsg
+shortenWithBitly clientIdStr apiKey longUrl =
+    let
+        body =
+            Encode.object
+                [ ( "long_url", Encode.string longUrl )
+                ]
+
+        task =
+            Http.task
+                { method = "POST"
+                , headers =
+                    [ Http.header "Authorization" ("Bearer " ++ apiKey)
+                    , Http.header "Content-Type" "application/json"
+                    ]
+                , url = "https://api-ssl.bitly.com/v4/shorten"
+                , body = Http.jsonBody body
+                , resolver = Http.stringResolver responseStringToResult
+                , timeout = Just 30000
+                }
+    in
+    Task.attempt (\result -> GotBitlyResponse clientIdStr result longUrl) task
+        |> Command.fromCmd "shortenWithBitly"
+
+
+bitlyResponseDecoder : Decode.Decoder String
+bitlyResponseDecoder =
+    Decode.field "link" Decode.string

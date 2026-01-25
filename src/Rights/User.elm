@@ -26,6 +26,8 @@ createUser userInfo initialPreferences =
     { email = userInfo.email
     , name = userInfo.name
     , preferences = initialPreferences
+    , clients = []
+    , nextClientId = 1
     }
 
 

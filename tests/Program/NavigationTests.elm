@@ -19,7 +19,6 @@ suite =
     Test.describe "Navigation"
         [ testStartsAtHomePage
         , testNavigateToAdmin
-        , testNavigateToExamples
         ]
 
 
@@ -82,30 +81,3 @@ testNavigateToAdmin =
         |> Test.toTest
 
 
-{-| Test navigating to the examples page.
--}
-testNavigateToExamples : Test
-testNavigateToExamples =
-    Sim.start "navigate to examples"
-        [ Test.connectFrontend
-            0
-            (Effect.Lamdera.sessionIdFromString "session3")
-            (Sim.testUrl "/examples")
-            { width = 1920, height = 1080 }
-            (\frontend ->
-                [ Test.checkState 0 <|
-                    \data ->
-                        case SeqDict.get frontend.clientId data.frontends of
-                            Just model ->
-                                if model.currentRoute == Examples then
-                                    Ok ()
-
-                                else
-                                    Err ("Expected Examples route, got: " ++ Debug.toString model.currentRoute)
-
-                            Nothing ->
-                                Err "Frontend not found"
-                ]
-            )
-        ]
-        |> Test.toTest

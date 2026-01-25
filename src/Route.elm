@@ -22,9 +22,6 @@ parser =
         , Parser.map (\params -> Admin (AdminLogs params))
             (s "admin" </> s "logs" <?> logsQueryParser)
         , Parser.map (Admin AdminFetchModel) (s "admin" </> s "fetch-model")
-
-        --, Parser.map (Admin AdminFusion) (s "admin" </> s "fusion")
-        , Parser.map Examples (s "examples")
         ]
 
 
@@ -56,9 +53,6 @@ toString route =
 
         Admin AdminFetchModel ->
             "/admin/fetch-model"
-
-        Examples ->
-            "/examples"
 
         NotFound ->
             "/not-found"

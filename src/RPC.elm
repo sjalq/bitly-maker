@@ -1,7 +1,6 @@
 module RPC exposing (..)
 
 import Dict
-import EndpointExample.Price
 import Env
 import Http
 import Lamdera exposing (SessionId)
@@ -34,16 +33,6 @@ lamdera_handleEndpoints rawReq args model =
 
                 "getLogs" ->
                     LamderaRPC.handleEndpointJson getLogs args model
-
-                -- Example of long running process : Crypto Price Endpoints
-                -- Necessary since Lamdera needs to respond immediately and can
-                -- only provide the result after the asynchronous calls to external
-                -- services have been completed.
-                "getPrice" ->
-                    LamderaRPC.handleEndpointJson EndpointExample.Price.getPrice args model
-
-                "getPriceResult" ->
-                    LamderaRPC.handleEndpointJson EndpointExample.Price.getPriceResult args model
 
                 _ ->
                     let
