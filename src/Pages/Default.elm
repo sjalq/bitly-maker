@@ -373,6 +373,14 @@ viewBitlyHelp colors =
                 , strong [] [ text "Access tokens" ]
                 , text ", enter your Bitly password and click "
                 , strong [] [ text "Generate token" ]
+                , br [] []
+                , span [ Attr.class "text-xs", Attr.style "color" colors.mutedText ]
+                    [ text "(If you signed up with Google/social login and don't have a password, go to "
+                    , strong [] [ text "Account settings" ]
+                    , text " → "
+                    , strong [] [ text "Security" ]
+                    , text " to set one first)"
+                    ]
                 ]
             , li []
                 [ text "Copy the generated token and paste it above when adding a client" ]
