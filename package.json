@@ -1,0 +1,14 @@
+{
+  "name": "bitly-maker",
+  "version": "0.1.0",
+  "description": "bitly-maker - A Lamdera application",
+  "author": "sjalq",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "devDependencies": {
+    "elm-review": "^2.13.4",
+    "puppeteer": "^24.23.0"
+  }
+}
