@@ -131,6 +131,9 @@ viewUtmBuilder model colors =
 
         -- Client Manager Section
         , viewClientManager model colors
+
+        -- Help Section
+        , viewBitlyHelp colors
         ]
 
 
@@ -318,4 +321,65 @@ viewClientItem colors client =
             , colors = colors
             }
             "Delete"
+        ]
+
+
+viewBitlyHelp : Theme.Colors -> Html FrontendMsg
+viewBitlyHelp colors =
+    Components.Card.simple colors
+        [ h2
+            [ Attr.class "text-lg font-semibold mb-3"
+            , Attr.style "color" colors.primaryText
+            ]
+            [ text "How to Get a Bitly API Token" ]
+        , ol
+            [ Attr.class "list-decimal list-inside space-y-2 text-sm"
+            , Attr.style "color" colors.mutedText
+            ]
+            [ li []
+                [ text "Go to "
+                , a
+                    [ Attr.href "https://app.bitly.com/"
+                    , Attr.target "_blank"
+                    , Attr.rel "noopener noreferrer"
+                    , Attr.style "color" "#3b82f6"
+                    , Attr.style "text-decoration" "underline"
+                    ]
+                    [ text "app.bitly.com" ]
+                , text " and sign in (or create an account)"
+                ]
+            , li []
+                [ text "Click your profile icon in the top-right corner" ]
+            , li []
+                [ text "Select "
+                , strong [] [ text "Settings" ]
+                ]
+            , li []
+                [ text "In the left sidebar, click "
+                , strong [] [ text "Developer settings" ]
+                , text " (or go directly to "
+                , a
+                    [ Attr.href "https://app.bitly.com/settings/api/"
+                    , Attr.target "_blank"
+                    , Attr.rel "noopener noreferrer"
+                    , Attr.style "color" "#3b82f6"
+                    , Attr.style "text-decoration" "underline"
+                    ]
+                    [ text "bitly.com/settings/api" ]
+                , text ")"
+                ]
+            , li []
+                [ text "Under "
+                , strong [] [ text "Access tokens" ]
+                , text ", enter your Bitly password and click "
+                , strong [] [ text "Generate token" ]
+                ]
+            , li []
+                [ text "Copy the generated token and paste it above when adding a client" ]
+            ]
+        , p
+            [ Attr.class "mt-4 text-xs"
+            , Attr.style "color" colors.mutedText
+            ]
+            [ text "Note: Keep your API token secure. Each client/project should ideally have its own Bitly account and token." ]
         ]
