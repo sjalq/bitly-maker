@@ -52,6 +52,29 @@ actionRoleMap msg =
         ShortenUrlToBackend _ _ _ ->
             UserRole
 
+        -- Client configuration (sources/tags)
+        AddSourceToClientBackend _ _ ->
+            UserRole
+
+        RemoveSourceFromClientBackend _ _ ->
+            UserRole
+
+        ToggleSourceDefaultBackend _ _ ->
+            UserRole
+
+        AddTagToClientBackend _ _ ->
+            UserRole
+
+        RemoveTagFromClientBackend _ _ ->
+            UserRole
+
+        -- Multi-source link creation
+        CreateLinksToBackend _ _ _ _ _ ->
+            UserRole
+
+        GetLinksForClientBackend _ ->
+            UserRole
+
 
 
 -- Allow anyone to send websocket messages

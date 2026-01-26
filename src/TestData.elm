@@ -17,6 +17,8 @@ defaultUsers =
             , preferences = { darkMode = True }
             , clients = []
             , nextClientId = 1
+            , links = []
+            , nextLinkId = 1
             }
           )
         ]

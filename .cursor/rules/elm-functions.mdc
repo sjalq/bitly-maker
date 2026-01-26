@@ -26,18 +26,19 @@ alwaysApply: true
 
 ## src/Backend.elm
 ### Backend
-30 app
-40 subscriptions _
-45 init
-67 update msg model
-129 updateFromFrontend sessionId clientId msg model
-312 updateFromFrontendCheckingRights sessionId clientId msg model
-363 getUserFromCookie browserCookie model
-369 userToFrontend user
-379 handleEmailPasswordAuth browserCookie connectionId authMsg model
-393 buildUtmUrl baseUrl params
-426 shortenWithBitly clientIdStr apiKey longUrl
-451 bitlyResponseDecoder
+32 app
+42 subscriptions _
+47 init
+69 update msg model
+193 updateFromFrontend sessionId clientId msg model
+620 updateFromFrontendCheckingRights sessionId clientId msg model
+671 getUserFromCookie browserCookie model
+677 userToFrontend user
+688 handleEmailPasswordAuth browserCookie connectionId authMsg model
+702 buildUtmUrl baseUrl params
+735 shortenWithBitly clientIdStr apiKey longUrl
+760 shortenWithBitlyMulti connectionIdStr email linkId targetClientId destUrl source medium campaign term content tags apiKey longUrl
+803 bitlyResponseDecoder
 
 ## src/Components/AuthControls.elm
 ### Components.AuthControls
@@ -111,21 +112,21 @@ alwaysApply: true
 
 ## src/Frontend.elm
 ### Frontend
-51 app
-64 subscriptions _
-70 init url key
-126 inits model route
-141 update msg model
-358 updateFromBackend msg model
-417 view model
-448 callbackForAuth0Auth model url key
-457 callbackForGoogleAuth model url key
-466 authCallbackCmd model url key
-483 initWithAuth url key
-501 updateEmailPasswordAuth authMsg model
-557 updateEmailPasswordForm msg model
-590 viewWithAuth model
-666 authUpdateFromBackend authToFrontendMsg model
+54 app
+67 subscriptions _
+73 init url key
+144 inits model route
+163 update msg model
+550 updateFromBackend msg model
+677 view model
+708 callbackForAuth0Auth model url key
+717 callbackForGoogleAuth model url key
+726 authCallbackCmd model url key
+743 initWithAuth url key
+761 updateEmailPasswordAuth authMsg model
+817 updateEmailPasswordForm msg model
+850 viewWithAuth model
+926 authUpdateFromBackend authToFrontendMsg model
 
 ## src/LamderaRPC.elm
 ### LamderaRPC
@@ -196,24 +197,48 @@ alwaysApply: true
 400 formatTimestamp millis
 418 viewLogin _ colors
 
+## src/Pages/Dashboard.elm
+### Pages.Dashboard
+16 init model
+21 view model colors
+36 viewLoginPrompt colors
+48 viewDashboard model colors
+79 viewFilters model colors
+96 viewFilterInput colors labelText filterKey filters
+118 viewLinksTable links model colors
+143 viewSortableHeader colors label column currentColumn currentDirection
+170 viewLinkRow colors link
+200 viewTag colors tag
+210 formatTime posix
+246 applyFilters filters links
+277 applySort column direction links
+
 ## src/Pages/Default.elm
 ### Pages.Default
-14 init model
-19 view model colors
-34 viewLoginPrompt colors
-46 viewUtmBuilder model colors
-138 viewUtmInput colors labelText placeholder value onInput
-160 viewClientOption selectedId client
-169 viewResult colors result
-212 viewClientManager model colors
-302 viewClientItem colors client
+15 init model
+20 view model colors
+35 viewLoginPrompt colors
+47 viewUtmBuilder model colors
+156 viewSourcesSection model colors maybeClient
+206 viewSourceCheckbox selectedSources colors source
+251 viewTagsSection model colors maybeClient
+281 viewTagCheckbox selectedTags colors tag
+316 viewCreateButton model colors maybeClient
+366 viewUtmInput colors labelText placeholder value onInput
+388 viewClientOption selectedId client
+397 viewResult colors result
+440 viewClientManager model colors
+530 viewClientItem model colors client
+658 viewSourceItem colors clientId source
+690 viewTagItem colors clientId tag
+711 viewBitlyHelp colors
 
 ## src/Pages/PageFrame.elm
 ### Pages.PageFrame
-16 viewTabs model
-67 viewAccountControls model
-91 viewCurrentPage model
-119 viewNotFoundPage colors
+17 viewTabs model
+69 viewAccountControls model
+93 viewCurrentPage model
+124 viewNotFoundPage colors
 
 ## src/Ports/Clipboard.elm
 ### 
@@ -246,8 +271,8 @@ alwaysApply: true
 ## src/Rights/Permissions.elm
 ### Rights.Permissions
 12 actionRoleMap msg
-67 canPerformAction user action
-81 sessionCanPerformAction model browserCookie action
+90 canPerformAction user action
+104 sessionCanPerformAction model browserCookie action
 
 ## src/Rights/Role.elm
 ### Rights.Role
@@ -259,16 +284,16 @@ alwaysApply: true
 10 isSysAdmin user
 16 getUserRole user
 25 createUser userInfo initialPreferences
-35 insertUser email newUser model
+37 insertUser email newUser model
 
 ## src/Route.elm
 ### Route
 10 defaultLogsParams
 18 parser
-29 logsQueryParser
-37 fromUrl url
-43 toString route
-62 logsParamsToQuery params
+30 logsQueryParser
+38 fromUrl url
+44 toString route
+66 logsParamsToQuery params
 
 ## src/SignatureParser.elm
 ### SignatureParser
@@ -316,9 +341,9 @@ alwaysApply: true
 ## src/TestData.elm
 ### TestData
 12 defaultUsers
-28 defaultEmailPasswordCredentials
-48 defaultSessions
-55 initializeTestData model
+30 defaultEmailPasswordCredentials
+50 defaultSessions
+57 initializeTestData model
 
 ## src/Theme.elm
 ### Theme

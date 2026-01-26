@@ -110,6 +110,8 @@ completeSignup browserCookie connectionId email _ maybeName salt hash model =
             , preferences = initialPreferences
             , clients = []
             , nextClientId = 1
+            , links = []
+            , nextLinkId = 1
             }
 
         userInfo =

@@ -6,6 +6,7 @@ import Dict
 import Effect.Command as Command exposing (BackendOnly, Command)
 import Effect.Lamdera
 import Effect.Subscription as Subscription exposing (Subscription)
+import Effect.Time
 import Env
 import Http
 import Json.Decode as Decode
@@ -19,6 +20,7 @@ import Rights.User exposing (createUser, getUserRole, insertUser, isSysAdmin)
 import Supplemental exposing (..)
 import Task
 import TestData
+import Time
 import Types exposing (..)
 import Url
 
@@ -94,27 +96,89 @@ update msg model =
                     EmailPasswordAuth.completeSignup browserCookie connectionId email password maybeName salt hash model
                         |> Tuple.mapSecond (Command.fromCmd "EmailPasswordAuth")
 
-        GotBitlyResponse clientId result utmUrl ->
+        GotBitlyResponse connectionIdStr result utmUrl ->
             case result of
                 Ok responseBody ->
                     -- Parse the Bitly response to get the short URL
                     case Decode.decodeString bitlyResponseDecoder responseBody of
                         Ok shortUrl ->
                             ( model
-                            , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString clientId)
+                            , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
                                 (ShortenUrlResult (Ok { utmUrl = utmUrl, shortUrl = shortUrl }))
                             )
 
                         Err err ->
                             ( model
-                            , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString clientId)
+                            , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
                                 (ShortenUrlResult (Err ("Failed to parse Bitly response: " ++ Decode.errorToString err)))
                             )
 
                 Err httpErr ->
                     ( model
-                    , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString clientId)
+                    , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
                         (ShortenUrlResult (Err (httpErrorToString httpErr)))
+                    )
+
+        GotMultiLinkBitlyResponse connectionIdStr email linkId targetClientId destUrl source medium campaign term content tags createdAt result utmUrl ->
+            case result of
+                Ok responseBody ->
+                    case Decode.decodeString bitlyResponseDecoder responseBody of
+                        Ok shortUrl ->
+                            let
+                                newLink : CreatedLink
+                                newLink =
+                                    { id = linkId
+                                    , clientId = targetClientId
+                                    , destinationUrl = destUrl
+                                    , utmSource = source
+                                    , utmMedium = medium
+                                    , utmCampaign = campaign
+                                    , utmTerm = term
+                                    , utmContent = content
+                                    , shortUrl = shortUrl
+                                    , fullUtmUrl = utmUrl
+                                    , tags = tags
+                                    , createdAt = createdAt
+                                    }
+
+                                -- Update user's links
+                                updatedModel =
+                                    case Dict.get email model.users of
+                                        Just user ->
+                                            let
+                                                updatedUser =
+                                                    { user | links = newLink :: user.links }
+
+                                                updatedUsers =
+                                                    Dict.insert email updatedUser model.users
+                                            in
+                                            { model | users = updatedUsers }
+
+                                        Nothing ->
+                                            model
+                            in
+                            ( updatedModel
+                            , Command.batch
+                                [ Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
+                                    (MultiLinkCreationResult [ Ok newLink ])
+                                , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
+                                    (LinksUpdated (case Dict.get email updatedModel.users of
+                                        Just user -> user.links
+                                        Nothing -> []
+                                    ))
+                                ]
+                            )
+
+                        Err err ->
+                            ( model
+                            , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
+                                (MultiLinkCreationResult [ Err ("Failed to parse Bitly response: " ++ Decode.errorToString err) ])
+                            )
+
+                Err httpErr ->
+                    ( model
+                    , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
+                        (MultiLinkCreationResult [ Err (httpErrorToString httpErr) ])
                     )
 
 
@@ -241,10 +305,13 @@ updateFromFrontend sessionId clientId msg model =
             case getUserFromCookie browserCookie model of
                 Just user ->
                     let
+                        newClient : BitlyClient
                         newClient =
                             { id = user.nextClientId
                             , name = name
                             , apiKey = apiKey
+                            , sources = []
+                            , tags = []
                             }
 
                         updatedUser =
@@ -306,6 +373,247 @@ updateFromFrontend sessionId clientId msg model =
                     ( model
                     , Effect.Lamdera.sendToFrontend clientId (ShortenUrlResult (Err "Not logged in"))
                     )
+
+        -- Client Configuration - Sources
+        AddSourceToClientBackend targetClientId sourceName ->
+            case getUserFromCookie browserCookie model of
+                Just user ->
+                    let
+                        newSource =
+                            { name = sourceName, isDefault = False }
+
+                        updateClient : BitlyClient -> BitlyClient
+                        updateClient c =
+                            if c.id == targetClientId then
+                                { c | sources = c.sources ++ [ newSource ] }
+
+                            else
+                                c
+
+                        updatedClients =
+                            List.map updateClient user.clients
+
+                        updatedUser =
+                            { user | clients = updatedClients }
+
+                        updatedUsers =
+                            Dict.insert user.email updatedUser model.users
+                    in
+                    ( { model | users = updatedUsers }
+                    , Effect.Lamdera.sendToFrontend clientId (ClientsUpdated updatedClients)
+                    )
+
+                Nothing ->
+                    ( model, Command.none )
+
+        RemoveSourceFromClientBackend targetClientId sourceName ->
+            case getUserFromCookie browserCookie model of
+                Just user ->
+                    let
+                        updateClient : BitlyClient -> BitlyClient
+                        updateClient c =
+                            if c.id == targetClientId then
+                                { c | sources = List.filter (\s -> s.name /= sourceName) c.sources }
+
+                            else
+                                c
+
+                        updatedClients =
+                            List.map updateClient user.clients
+
+                        updatedUser =
+                            { user | clients = updatedClients }
+
+                        updatedUsers =
+                            Dict.insert user.email updatedUser model.users
+                    in
+                    ( { model | users = updatedUsers }
+                    , Effect.Lamdera.sendToFrontend clientId (ClientsUpdated updatedClients)
+                    )
+
+                Nothing ->
+                    ( model, Command.none )
+
+        ToggleSourceDefaultBackend targetClientId sourceName ->
+            case getUserFromCookie browserCookie model of
+                Just user ->
+                    let
+                        toggleDefault : UtmSource -> UtmSource
+                        toggleDefault s =
+                            if s.name == sourceName then
+                                { s | isDefault = not s.isDefault }
+
+                            else
+                                s
+
+                        updateClient : BitlyClient -> BitlyClient
+                        updateClient c =
+                            if c.id == targetClientId then
+                                { c | sources = List.map toggleDefault c.sources }
+
+                            else
+                                c
+
+                        updatedClients =
+                            List.map updateClient user.clients
+
+                        updatedUser =
+                            { user | clients = updatedClients }
+
+                        updatedUsers =
+                            Dict.insert user.email updatedUser model.users
+                    in
+                    ( { model | users = updatedUsers }
+                    , Effect.Lamdera.sendToFrontend clientId (ClientsUpdated updatedClients)
+                    )
+
+                Nothing ->
+                    ( model, Command.none )
+
+        -- Client Configuration - Tags
+        AddTagToClientBackend targetClientId tag ->
+            case getUserFromCookie browserCookie model of
+                Just user ->
+                    let
+                        updateClient : BitlyClient -> BitlyClient
+                        updateClient c =
+                            if c.id == targetClientId then
+                                { c | tags = c.tags ++ [ tag ] }
+
+                            else
+                                c
+
+                        updatedClients =
+                            List.map updateClient user.clients
+
+                        updatedUser =
+                            { user | clients = updatedClients }
+
+                        updatedUsers =
+                            Dict.insert user.email updatedUser model.users
+                    in
+                    ( { model | users = updatedUsers }
+                    , Effect.Lamdera.sendToFrontend clientId (ClientsUpdated updatedClients)
+                    )
+
+                Nothing ->
+                    ( model, Command.none )
+
+        RemoveTagFromClientBackend targetClientId tag ->
+            case getUserFromCookie browserCookie model of
+                Just user ->
+                    let
+                        updateClient : BitlyClient -> BitlyClient
+                        updateClient c =
+                            if c.id == targetClientId then
+                                { c | tags = List.filter (\t -> t /= tag) c.tags }
+
+                            else
+                                c
+
+                        updatedClients =
+                            List.map updateClient user.clients
+
+                        updatedUser =
+                            { user | clients = updatedClients }
+
+                        updatedUsers =
+                            Dict.insert user.email updatedUser model.users
+                    in
+                    ( { model | users = updatedUsers }
+                    , Effect.Lamdera.sendToFrontend clientId (ClientsUpdated updatedClients)
+                    )
+
+                Nothing ->
+                    ( model, Command.none )
+
+        -- Multi-source link creation
+        CreateLinksToBackend targetClientId destUrl utmParams selectedSources selectedTags ->
+            case getUserFromCookie browserCookie model of
+                Just user ->
+                    case List.filter (\c -> c.id == targetClientId) user.clients |> List.head of
+                        Just client ->
+                            -- Create one link per selected source
+                            let
+                                sourcesToCreate =
+                                    if List.isEmpty selectedSources then
+                                        -- Fallback to a single link with the utmParams source
+                                        [ utmParams.source ]
+
+                                    else
+                                        selectedSources
+
+                                -- For each source, we need to make a Bitly API call
+                                -- We'll use the multi-link backend message for handling responses
+                                createLinkForSource : Int -> String -> ( Int, Command BackendOnly ToFrontend BackendMsg )
+                                createLinkForSource linkId source =
+                                    let
+                                        fullUtmParams =
+                                            { utmParams | source = source }
+
+                                        utmUrl =
+                                            buildUtmUrl destUrl fullUtmParams
+
+                                        cmd =
+                                            shortenWithBitlyMulti
+                                                connectionId
+                                                user.email
+                                                linkId
+                                                targetClientId
+                                                destUrl
+                                                source
+                                                utmParams.medium
+                                                utmParams.campaign
+                                                utmParams.term
+                                                utmParams.content
+                                                selectedTags
+                                                client.apiKey
+                                                utmUrl
+                                    in
+                                    ( linkId + 1, cmd )
+
+                                ( finalLinkId, commands ) =
+                                    List.foldl
+                                        (\source ( currentId, cmds ) ->
+                                            let
+                                                ( nextId, cmd ) =
+                                                    createLinkForSource currentId source
+                                            in
+                                            ( nextId, cmds ++ [ cmd ] )
+                                        )
+                                        ( user.nextLinkId, [] )
+                                        sourcesToCreate
+
+                                -- Update user's nextLinkId
+                                updatedUser =
+                                    { user | nextLinkId = finalLinkId }
+
+                                updatedUsers =
+                                    Dict.insert user.email updatedUser model.users
+                            in
+                            ( { model | users = updatedUsers }
+                            , Command.batch commands
+                            )
+
+                        Nothing ->
+                            ( model
+                            , Effect.Lamdera.sendToFrontend clientId (ShortenUrlResult (Err "Client not found"))
+                            )
+
+                Nothing ->
+                    ( model
+                    , Effect.Lamdera.sendToFrontend clientId (ShortenUrlResult (Err "Not logged in"))
+                    )
+
+        GetLinksForClientBackend _ ->
+            case getUserFromCookie browserCookie model of
+                Just user ->
+                    ( model
+                    , Effect.Lamdera.sendToFrontend clientId (LinksUpdated user.links)
+                    )
+
+                Nothing ->
+                    ( model, Command.none )
 
 
 updateFromFrontendCheckingRights : Effect.Lamdera.SessionId -> Effect.Lamdera.ClientId -> ToBackend -> Model -> ( Model, Command BackendOnly ToFrontend BackendMsg )
@@ -372,6 +680,7 @@ userToFrontend user =
     , role = getUserRole user |> roleToString
     , preferences = user.preferences
     , clients = user.clients
+    , links = user.links
     }
 
 
@@ -445,6 +754,49 @@ shortenWithBitly clientIdStr apiKey longUrl =
     in
     Task.attempt (\result -> GotBitlyResponse clientIdStr result longUrl) task
         |> Command.fromCmd "shortenWithBitly"
+
+
+shortenWithBitlyMulti : ConnectionId -> Email -> LinkId -> BitlyClientId -> String -> String -> String -> String -> String -> String -> List String -> String -> String -> Command BackendOnly ToFrontend BackendMsg
+shortenWithBitlyMulti connectionIdStr email linkId targetClientId destUrl source medium campaign term content tags apiKey longUrl =
+    let
+        body =
+            Encode.object
+                [ ( "long_url", Encode.string longUrl )
+                ]
+
+        httpTask =
+            Http.task
+                { method = "POST"
+                , headers =
+                    [ Http.header "Authorization" ("Bearer " ++ apiKey)
+                    , Http.header "Content-Type" "application/json"
+                    ]
+                , url = "https://api-ssl.bitly.com/v4/shorten"
+                , body = Http.jsonBody body
+                , resolver = Http.stringResolver responseStringToResult
+                , timeout = Just 30000
+                }
+
+        -- Chain HTTP request with getting current time
+        combinedTask =
+            httpTask
+                |> Task.andThen
+                    (\httpResult ->
+                        Time.now
+                            |> Task.map (\now -> ( now, httpResult ))
+                    )
+    in
+    combinedTask
+        |> Task.attempt
+            (\result ->
+                case result of
+                    Ok ( now, httpResult ) ->
+                        GotMultiLinkBitlyResponse connectionIdStr email linkId targetClientId destUrl source medium campaign term content tags now (Ok httpResult) longUrl
+
+                    Err httpErr ->
+                        GotMultiLinkBitlyResponse connectionIdStr email linkId targetClientId destUrl source medium campaign term content tags (Time.millisToPosix 0) (Err httpErr) longUrl
+            )
+        |> Command.fromCmd "shortenWithBitlyMulti"
 
 
 bitlyResponseDecoder : Decode.Decoder String

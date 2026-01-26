@@ -23,6 +23,8 @@ anonymousUser =
     , preferences = defaultPreferences
     , clients = []
     , nextClientId = 1
+    , links = []
+    , nextLinkId = 1
     }
 
 
@@ -33,6 +35,8 @@ regularUser =
     , preferences = defaultPreferences
     , clients = []
     , nextClientId = 1
+    , links = []
+    , nextLinkId = 1
     }
 
 
@@ -43,6 +47,8 @@ sysAdminUser =
     , preferences = defaultPreferences
     , clients = []
     , nextClientId = 1
+    , links = []
+    , nextLinkId = 1
     }
 
 

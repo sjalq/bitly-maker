@@ -5,6 +5,7 @@ import Auth.Flow
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Components.LoginModal
+import Dict
 import Effect.Browser.Navigation
 import Effect.Command as Command exposing (Command, FrontendOnly)
 import Effect.Lamdera
@@ -14,10 +15,12 @@ import Html.Attributes as Attr
 import Html.Events as HE
 import Lamdera
 import Pages.Admin
+import Pages.Dashboard
 import Pages.Default
 import Pages.PageFrame exposing (viewCurrentPage, viewTabs)
 import Ports.Clipboard
 import Route
+import Set
 import Task
 import Theme
 import Types exposing (..)
@@ -117,6 +120,21 @@ init url key =
             , newClientApiKey = ""
             , clientFormError = Nothing
             , showClientManager = False
+
+            -- Client configuration (sources/tags management)
+            , newSourceInput = ""
+            , newTagInput = ""
+            , editingClientId = Nothing
+
+            -- Link creation with sources
+            , selectedSources = Set.empty
+            , selectedTags = Set.empty
+
+            -- Dashboard state
+            , linksForDashboard = []
+            , dashboardSortColumn = ColCreatedAt
+            , dashboardSortDirection = Descending
+            , dashboardFilters = Dict.empty
             }
     in
     inits model route
@@ -133,7 +151,11 @@ inits model route =
             Pages.Default.init model
                 |> Tuple.mapSecond (Command.fromCmd "Default.init")
 
-        _ ->
+        Dashboard ->
+            Pages.Dashboard.init model
+                |> Tuple.mapSecond (Command.fromCmd "Dashboard.init")
+
+        NotFound ->
             ( model, Command.none )
 
 
@@ -262,7 +284,38 @@ update msg model =
 
         -- UTM Builder messages
         SelectClient maybeId ->
-            ( { model | selectedClientId = maybeId }, Command.none )
+            let
+                -- Find the selected client and pre-select its default sources
+                defaultSources =
+                    case maybeId of
+                        Just clientId ->
+                            List.filter (\c -> c.id == clientId) model.clients
+                                |> List.head
+                                |> Maybe.map
+                                    (\client ->
+                                        client.sources
+                                            |> List.filterMap
+                                                (\s ->
+                                                    if s.isDefault then
+                                                        Just s.name
+
+                                                    else
+                                                        Nothing
+                                                )
+                                            |> Set.fromList
+                                    )
+                                |> Maybe.withDefault Set.empty
+
+                        Nothing ->
+                            Set.empty
+            in
+            ( { model
+                | selectedClientId = maybeId
+                , selectedSources = defaultSources
+                , selectedTags = Set.empty
+              }
+            , Command.none
+            )
 
         DestinationUrlChanged url ->
             ( { model | destinationUrl = url }, Command.none )
@@ -290,6 +343,45 @@ update msg model =
 
                     else
                         let
+                            -- Find the selected client
+                            maybeClient =
+                                List.filter (\c -> c.id == clientId) model.clients
+                                    |> List.head
+
+                            -- Determine which sources to use
+                            sourcesToUse =
+                                case maybeClient of
+                                    Just client ->
+                                        if List.isEmpty client.sources then
+                                            -- No sources configured, use the manual input
+                                            if String.isEmpty (String.trim model.utmSource) then
+                                                []
+
+                                            else
+                                                [ model.utmSource ]
+
+                                        else if Set.isEmpty model.selectedSources then
+                                            -- No sources selected, use defaults
+                                            List.filterMap
+                                                (\s ->
+                                                    if s.isDefault then
+                                                        Just s.name
+
+                                                    else
+                                                        Nothing
+                                                )
+                                                client.sources
+
+                                        else
+                                            Set.toList model.selectedSources
+
+                                    Nothing ->
+                                        []
+
+                            -- Determine which tags to use
+                            tagsToUse =
+                                Set.toList model.selectedTags
+
                             utmParams =
                                 { source = model.utmSource
                                 , medium = model.utmMedium
@@ -298,9 +390,17 @@ update msg model =
                                 , content = model.utmContent
                                 }
                         in
-                        ( { model | isShortening = True, shortenResult = Nothing }
-                        , Effect.Lamdera.sendToBackend (ShortenUrlToBackend clientId model.destinationUrl utmParams)
-                        )
+                        if List.isEmpty sourcesToUse then
+                            -- No sources to create links for - use the old single-link method with empty source
+                            ( { model | isShortening = True, shortenResult = Nothing }
+                            , Effect.Lamdera.sendToBackend (ShortenUrlToBackend clientId model.destinationUrl utmParams)
+                            )
+
+                        else
+                            -- Use multi-source creation
+                            ( { model | isShortening = True, shortenResult = Nothing }
+                            , Effect.Lamdera.sendToBackend (CreateLinksToBackend clientId model.destinationUrl utmParams sourcesToUse tagsToUse)
+                            )
 
                 Nothing ->
                     ( model, Command.none )
@@ -339,6 +439,98 @@ update msg model =
 
         ToggleClientManager ->
             ( { model | showClientManager = not model.showClientManager }, Command.none )
+
+        -- Client Configuration (sources/tags)
+        NewSourceInputChanged value ->
+            ( { model | newSourceInput = value }, Command.none )
+
+        AddSourceToClient clientId ->
+            if String.isEmpty (String.trim model.newSourceInput) then
+                ( model, Command.none )
+
+            else
+                ( { model | newSourceInput = "" }
+                , Effect.Lamdera.sendToBackend (AddSourceToClientBackend clientId model.newSourceInput)
+                )
+
+        RemoveSourceFromClient clientId sourceName ->
+            ( model, Effect.Lamdera.sendToBackend (RemoveSourceFromClientBackend clientId sourceName) )
+
+        ToggleSourceDefault clientId sourceName ->
+            ( model, Effect.Lamdera.sendToBackend (ToggleSourceDefaultBackend clientId sourceName) )
+
+        NewTagInputChanged value ->
+            ( { model | newTagInput = value }, Command.none )
+
+        AddTagToClient clientId ->
+            if String.isEmpty (String.trim model.newTagInput) then
+                ( model, Command.none )
+
+            else
+                ( { model | newTagInput = "" }
+                , Effect.Lamdera.sendToBackend (AddTagToClientBackend clientId model.newTagInput)
+                )
+
+        RemoveTagFromClient clientId tag ->
+            ( model, Effect.Lamdera.sendToBackend (RemoveTagFromClientBackend clientId tag) )
+
+        ToggleSourceSelection sourceName ->
+            let
+                newSelectedSources =
+                    if Set.member sourceName model.selectedSources then
+                        Set.remove sourceName model.selectedSources
+
+                    else
+                        Set.insert sourceName model.selectedSources
+            in
+            ( { model | selectedSources = newSelectedSources }, Command.none )
+
+        ToggleTagSelection tag ->
+            let
+                newSelectedTags =
+                    if Set.member tag model.selectedTags then
+                        Set.remove tag model.selectedTags
+
+                    else
+                        Set.insert tag model.selectedTags
+            in
+            ( { model | selectedTags = newSelectedTags }, Command.none )
+
+        SetEditingClient maybeClientId ->
+            ( { model | editingClientId = maybeClientId }, Command.none )
+
+        -- Dashboard
+        SetDashboardSort column ->
+            let
+                newDirection =
+                    if model.dashboardSortColumn == column then
+                        -- Toggle direction if clicking same column
+                        case model.dashboardSortDirection of
+                            Ascending ->
+                                Descending
+
+                            Descending ->
+                                Ascending
+
+                    else
+                        -- Default to descending for new column
+                        Descending
+            in
+            ( { model | dashboardSortColumn = column, dashboardSortDirection = newDirection }, Command.none )
+
+        SetDashboardFilter key value ->
+            let
+                newFilters =
+                    if String.isEmpty value then
+                        Dict.remove key model.dashboardFilters
+
+                    else
+                        Dict.insert key value model.dashboardFilters
+            in
+            ( { model | dashboardFilters = newFilters }, Command.none )
+
+        ClearDashboardFilters ->
+            ( { model | dashboardFilters = Dict.empty }, Command.none )
 
 
 
@@ -389,7 +581,14 @@ updateFromBackend msg model =
                     ( { model | login = NotLogged False, pendingAuth = False, preferences = { darkMode = True } }, Command.none )
 
         UserDataToFrontend currentUser ->
-            ( { model | currentUser = Just currentUser, preferences = currentUser.preferences, clients = currentUser.clients }, Command.none )
+            ( { model
+                | currentUser = Just currentUser
+                , preferences = currentUser.preferences
+                , clients = currentUser.clients
+                , linksForDashboard = currentUser.links
+              }
+            , Command.none
+            )
 
         ClientsUpdated clients ->
             ( { model | clients = clients }, Command.none )
@@ -401,6 +600,67 @@ updateFromBackend msg model =
 
                 Err errorMsg ->
                     ( { model | isShortening = False, clientFormError = Just errorMsg }, Command.none )
+
+        LinksUpdated links ->
+            ( { model | linksForDashboard = links }, Command.none )
+
+        MultiLinkCreationResult results ->
+            let
+                -- Extract successful links
+                successfulLinks =
+                    List.filterMap
+                        (\result ->
+                            case result of
+                                Ok link ->
+                                    Just link
+
+                                Err _ ->
+                                    Nothing
+                        )
+                        results
+
+                -- Get first successful result for the shortenResult display
+                firstSuccess =
+                    List.head successfulLinks
+                        |> Maybe.map
+                            (\link ->
+                                { utmUrl = link.fullUtmUrl
+                                , shortUrl = link.shortUrl
+                                }
+                            )
+
+                -- Add to dashboard links
+                newLinksForDashboard =
+                    successfulLinks ++ model.linksForDashboard
+
+                -- Check for any errors
+                errors =
+                    List.filterMap
+                        (\result ->
+                            case result of
+                                Err err ->
+                                    Just err
+
+                                Ok _ ->
+                                    Nothing
+                        )
+                        results
+
+                errorMsg =
+                    if List.isEmpty errors then
+                        Nothing
+
+                    else
+                        Just (String.join "; " errors)
+            in
+            ( { model
+                | isShortening = False
+                , shortenResult = firstSuccess
+                , linksForDashboard = newLinksForDashboard
+                , clientFormError = errorMsg
+              }
+            , Command.none
+            )
 
         -- Admin_FusionResponse value ->
         --     ( { model | fusionState = value }, Command.none )

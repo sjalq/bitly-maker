@@ -6,6 +6,7 @@ import Components.Tab
 import Html exposing (..)
 import Html.Attributes as Attr
 import Pages.Admin
+import Pages.Dashboard
 import Pages.Default
 import Route
 import Theme
@@ -23,6 +24,7 @@ viewTabs model =
 
         baseTabs =
             [ { label = "Home", href = Route.toString Default, isActive = model.currentRoute == Default, colors = colors }
+            , { label = "Dashboard", href = Route.toString Dashboard, isActive = model.currentRoute == Dashboard, colors = colors }
             ]
 
         adminTabs =
@@ -104,6 +106,9 @@ viewCurrentPage model =
         [ case model.currentRoute of
             Default ->
                 Pages.Default.view model colors
+
+            Dashboard ->
+                Pages.Dashboard.view model colors
 
             Admin _ ->
                 Pages.Admin.view model colors

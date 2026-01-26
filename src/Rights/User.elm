@@ -28,6 +28,8 @@ createUser userInfo initialPreferences =
     , preferences = initialPreferences
     , clients = []
     , nextClientId = 1
+    , links = []
+    , nextLinkId = 1
     }
 
 

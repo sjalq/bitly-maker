@@ -1,4 +1,4 @@
-module Types exposing (AdminLogsUrlParams, AdminPageModel, AdminRoute(..), BackendModel, BackendMsg(..), BitlyClient, BitlyClientId, BrowserCookie, ConnectionId, Email, EmailPasswordAuthMsg(..), EmailPasswordAuthResult(..), EmailPasswordAuthToBackend(..), EmailPasswordCredentials, EmailPasswordFormModel, EmailPasswordFormMsg(..), FrontendModel, FrontendMsg(..), LoginState(..), PollData, PollingStatus(..), PollingToken, Preferences, Role(..), Route(..), ShortenResult, ToBackend(..), ToFrontend(..), UtmParams, User, UserFrontend)
+module Types exposing (AdminLogsUrlParams, AdminPageModel, AdminRoute(..), BackendModel, BackendMsg(..), BitlyClient, BitlyClientId, BrowserCookie, ConnectionId, CreatedLink, DashboardColumn(..), Email, EmailPasswordAuthMsg(..), EmailPasswordAuthResult(..), EmailPasswordAuthToBackend(..), EmailPasswordCredentials, EmailPasswordFormModel, EmailPasswordFormMsg(..), FrontendModel, FrontendMsg(..), LinkId, LoginState(..), PollData, PollingStatus(..), PollingToken, Preferences, Role(..), Route(..), ShortenResult, SortDirection(..), ToBackend(..), ToFrontend(..), UtmParams, UtmSource, User, UserFrontend)
 
 import Auth.Common
 import Browser exposing (UrlRequest)
@@ -7,6 +7,8 @@ import Effect.Browser.Navigation
 import Http
 import Lamdera
 import Logger
+import Set exposing (Set)
+import Time
 import Url exposing (Url)
 
 
@@ -28,6 +30,7 @@ type alias BrowserCookie =
 
 type Route
     = Default
+    | Dashboard
     | Admin AdminRoute
     | NotFound
 
@@ -87,6 +90,21 @@ type alias FrontendModel =
     , newClientApiKey : String
     , clientFormError : Maybe String
     , showClientManager : Bool
+
+    -- Client configuration (sources/tags management)
+    , newSourceInput : String
+    , newTagInput : String
+    , editingClientId : Maybe BitlyClientId
+
+    -- Link creation with sources
+    , selectedSources : Set String -- Which sources are checked
+    , selectedTags : Set String -- Which tags are selected
+
+    -- Dashboard state
+    , linksForDashboard : List CreatedLink
+    , dashboardSortColumn : DashboardColumn
+    , dashboardSortDirection : SortDirection
+    , dashboardFilters : Dict String String -- column name -> filter value
     }
 
 
@@ -177,6 +195,21 @@ type FrontendMsg
     | AddClient
     | DeleteClient BitlyClientId
     | ToggleClientManager
+      -- Client Configuration (sources/tags)
+    | NewSourceInputChanged String
+    | AddSourceToClient BitlyClientId
+    | RemoveSourceFromClient BitlyClientId String
+    | ToggleSourceDefault BitlyClientId String -- Toggle isDefault flag on a source
+    | NewTagInputChanged String
+    | AddTagToClient BitlyClientId
+    | RemoveTagFromClient BitlyClientId String
+    | ToggleSourceSelection String -- For link creation checkboxes
+    | ToggleTagSelection String
+    | SetEditingClient (Maybe BitlyClientId)
+      -- Dashboard
+    | SetDashboardSort DashboardColumn
+    | SetDashboardFilter String String
+    | ClearDashboardFilters
 
 
 
@@ -201,6 +234,15 @@ type ToBackend
     | DeleteClientToBackend BitlyClientId
       -- URL Shortening
     | ShortenUrlToBackend BitlyClientId String UtmParams -- clientId, url, utm params
+      -- Client Configuration (sources/tags)
+    | AddSourceToClientBackend BitlyClientId String
+    | RemoveSourceFromClientBackend BitlyClientId String
+    | ToggleSourceDefaultBackend BitlyClientId String
+    | AddTagToClientBackend BitlyClientId String
+    | RemoveTagFromClientBackend BitlyClientId String
+      -- Multi-source link creation
+    | CreateLinksToBackend BitlyClientId String UtmParams (List String) (List String) -- clientId, destUrl, utmParams (medium/campaign/term/content), selectedSources, selectedTags
+    | GetLinksForClientBackend BitlyClientId
 
 
 
@@ -217,6 +259,9 @@ type BackendMsg
     | EmailPasswordAuthResult EmailPasswordAuthResult
       -- Bitly API response
     | GotBitlyResponse ConnectionId (Result Http.Error String) String -- clientId, result, utmUrl
+      -- Multi-link creation
+    | GotMultiLinkBitlyResponse ConnectionId Email LinkId BitlyClientId String String String String String String (List String) Time.Posix (Result Http.Error String) String
+      -- connectionId, email, linkId, clientId, destUrl, source, medium, campaign, term, content, tags, createdAt, result, utmUrl
 
 
 type ToFrontend
@@ -232,6 +277,10 @@ type ToFrontend
     | ClientsUpdated (List BitlyClient)
       -- URL Shortening
     | ShortenUrlResult (Result String ShortenResult)
+      -- Links dashboard
+    | LinksUpdated (List CreatedLink)
+      -- Multi-link creation result
+    | MultiLinkCreationResult (List (Result String CreatedLink))
 
 
 
@@ -246,10 +295,18 @@ type alias BitlyClientId =
     Int
 
 
+type alias UtmSource =
+    { name : String
+    , isDefault : Bool -- If true, pre-checked when creating links
+    }
+
+
 type alias BitlyClient =
     { id : BitlyClientId
     , name : String
     , apiKey : String
+    , sources : List UtmSource -- Sources with default flag
+    , tags : List String -- e.g., ["Q1-Campaign", "Product-Launch"]
     }
 
 
@@ -268,12 +325,34 @@ type alias ShortenResult =
     }
 
 
+type alias LinkId =
+    Int
+
+
+type alias CreatedLink =
+    { id : LinkId -- Auto-increment per user
+    , clientId : BitlyClientId -- Which client created this
+    , destinationUrl : String -- Original URL
+    , utmSource : String -- The source used
+    , utmMedium : String
+    , utmCampaign : String
+    , utmTerm : String
+    , utmContent : String
+    , shortUrl : String -- Bitly shortened URL
+    , fullUtmUrl : String -- Full URL with UTM params
+    , tags : List String -- Tags applied to this link
+    , createdAt : Time.Posix -- When created
+    }
+
+
 type alias User =
     { email : Email
     , name : Maybe String
     , preferences : Preferences
     , clients : List BitlyClient
     , nextClientId : BitlyClientId
+    , links : List CreatedLink -- All created links
+    , nextLinkId : LinkId -- Counter for link IDs
     }
 
 
@@ -283,6 +362,7 @@ type alias UserFrontend =
     , role : String
     , preferences : Preferences
     , clients : List BitlyClient
+    , links : List CreatedLink
     }
 
 
@@ -319,6 +399,25 @@ type PollingStatus a
 
 type alias PollData =
     String
+
+
+
+-- Dashboard types
+
+
+type DashboardColumn
+    = ColCreatedAt
+    | ColDestinationUrl
+    | ColSource
+    | ColMedium
+    | ColCampaign
+    | ColShortUrl
+    | ColTags
+
+
+type SortDirection
+    = Ascending
+    | Descending
 
 
 

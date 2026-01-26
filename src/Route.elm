@@ -18,6 +18,7 @@ parser : Parser (Route -> a) a
 parser =
     oneOf
         [ Parser.map Default Parser.top
+        , Parser.map Dashboard (s "dashboard")
         , Parser.map (Admin AdminDefault) (s "admin")
         , Parser.map (\params -> Admin (AdminLogs params))
             (s "admin" </> s "logs" <?> logsQueryParser)
@@ -44,6 +45,9 @@ toString route =
     case route of
         Default ->
             "/"
+
+        Dashboard ->
+            "/dashboard"
 
         Admin AdminDefault ->
             "/admin"
