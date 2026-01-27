@@ -102,21 +102,48 @@ update msg model =
                     -- Parse the Bitly response to get the short URL
                     case Decode.decodeString bitlyResponseDecoder responseBody of
                         Ok shortUrl ->
-                            ( model
-                            , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
-                                (ShortenUrlResult (Ok { utmUrl = utmUrl, shortUrl = shortUrl }))
+                            let
+                                ( loggedModel, logCmd ) =
+                                    logAndGetCmd ("Bitly OK: " ++ utmUrl ++ " -> " ++ shortUrl) model
+                            in
+                            ( loggedModel
+                            , Command.batch
+                                [ logCmd
+                                , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
+                                    (ShortenUrlResult (Ok { utmUrl = utmUrl, shortUrl = shortUrl }))
+                                ]
                             )
 
                         Err err ->
-                            ( model
-                            , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
-                                (ShortenUrlResult (Err ("Failed to parse Bitly response: " ++ Decode.errorToString err)))
+                            let
+                                errMsg =
+                                    "Bitly parse error: " ++ Decode.errorToString err
+
+                                ( loggedModel, logCmd ) =
+                                    logErrorAndGetCmd errMsg model
+                            in
+                            ( loggedModel
+                            , Command.batch
+                                [ logCmd
+                                , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
+                                    (ShortenUrlResult (Err ("Failed to parse Bitly response: " ++ Decode.errorToString err)))
+                                ]
                             )
 
                 Err httpErr ->
-                    ( model
-                    , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
-                        (ShortenUrlResult (Err (httpErrorToString httpErr)))
+                    let
+                        errMsg =
+                            "Bitly API error for " ++ utmUrl ++ ": " ++ httpErrorToString httpErr
+
+                        ( loggedModel, logCmd ) =
+                            logErrorAndGetCmd errMsg model
+                    in
+                    ( loggedModel
+                    , Command.batch
+                        [ logCmd
+                        , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
+                            (ShortenUrlResult (Err (httpErrorToString httpErr)))
+                        ]
                     )
 
         GotMultiLinkBitlyResponse connectionIdStr email linkId targetClientId destUrl source medium campaign term content tags createdAt result utmUrl ->
@@ -142,7 +169,7 @@ update msg model =
                                     }
 
                                 -- Update user's links
-                                updatedModel =
+                                modelWithLink =
                                     case Dict.get email model.users of
                                         Just user ->
                                             let
@@ -156,13 +183,17 @@ update msg model =
 
                                         Nothing ->
                                             model
+
+                                ( loggedModel, logCmd ) =
+                                    logAndGetCmd ("Bitly multi OK: " ++ source ++ " -> " ++ shortUrl) modelWithLink
                             in
-                            ( updatedModel
+                            ( loggedModel
                             , Command.batch
-                                [ Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
+                                [ logCmd
+                                , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
                                     (MultiLinkCreationResult [ Ok newLink ])
                                 , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
-                                    (LinksUpdated (case Dict.get email updatedModel.users of
+                                    (LinksUpdated (case Dict.get email loggedModel.users of
                                         Just user -> user.links
                                         Nothing -> []
                                     ))
@@ -170,15 +201,35 @@ update msg model =
                             )
 
                         Err err ->
-                            ( model
-                            , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
-                                (MultiLinkCreationResult [ Err ("Failed to parse Bitly response: " ++ Decode.errorToString err) ])
+                            let
+                                errMsg =
+                                    "Bitly multi parse error for " ++ source ++ ": " ++ Decode.errorToString err
+
+                                ( loggedModel, logCmd ) =
+                                    logErrorAndGetCmd errMsg model
+                            in
+                            ( loggedModel
+                            , Command.batch
+                                [ logCmd
+                                , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
+                                    (MultiLinkCreationResult [ Err ("Failed to parse Bitly response: " ++ Decode.errorToString err) ])
+                                ]
                             )
 
                 Err httpErr ->
-                    ( model
-                    , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
-                        (MultiLinkCreationResult [ Err (httpErrorToString httpErr) ])
+                    let
+                        errMsg =
+                            "Bitly multi API error for " ++ source ++ " (" ++ utmUrl ++ "): " ++ httpErrorToString httpErr
+
+                        ( loggedModel, logCmd ) =
+                            logErrorAndGetCmd errMsg model
+                    in
+                    ( loggedModel
+                    , Command.batch
+                        [ logCmd
+                        , Effect.Lamdera.sendToFrontend (Effect.Lamdera.clientIdFromString connectionIdStr)
+                            (MultiLinkCreationResult [ Err (httpErrorToString httpErr) ])
+                        ]
                     )
 
 
@@ -187,6 +238,22 @@ update msg model =
 wrapLogCmd : ( Model, Cmd BackendMsg ) -> ( Model, Command BackendOnly ToFrontend BackendMsg )
 wrapLogCmd ( m, cmd ) =
     ( m, Command.fromCmd "logger" cmd )
+
+
+{-| Log a message and return the logging Command (to be batched with other commands)
+-}
+logAndGetCmd : String -> Model -> ( Model, Command BackendOnly ToFrontend BackendMsg )
+logAndGetCmd message model =
+    Logger.logInfo message GotLogTime ( model, Cmd.none )
+        |> wrapLogCmd
+
+
+{-| Log an error and return the logging Command
+-}
+logErrorAndGetCmd : String -> Model -> ( Model, Command BackendOnly ToFrontend BackendMsg )
+logErrorAndGetCmd message model =
+    Logger.logError message GotLogTime ( model, Cmd.none )
+        |> wrapLogCmd
 
 
 updateFromFrontend : Effect.Lamdera.SessionId -> Effect.Lamdera.ClientId -> ToBackend -> Model -> ( Model, Command BackendOnly ToFrontend BackendMsg )
@@ -543,6 +610,13 @@ updateFromFrontend sessionId clientId msg model =
                                     else
                                         selectedSources
 
+                                -- Log the request
+                                logMessage =
+                                    "Bitly request: destUrl=" ++ destUrl ++ ", sources=[" ++ String.join "," sourcesToCreate ++ "], apiKey=" ++ String.left 8 client.apiKey ++ "..."
+
+                                ( loggedModel, logCmd ) =
+                                    logAndGetCmd logMessage model
+
                                 -- For each source, we need to make a Bitly API call
                                 -- We'll use the multi-link backend message for handling responses
                                 createLinkForSource : Int -> String -> ( Int, Command BackendOnly ToFrontend BackendMsg )
@@ -589,10 +663,10 @@ updateFromFrontend sessionId clientId msg model =
                                     { user | nextLinkId = finalLinkId }
 
                                 updatedUsers =
-                                    Dict.insert user.email updatedUser model.users
+                                    Dict.insert user.email updatedUser loggedModel.users
                             in
-                            ( { model | users = updatedUsers }
-                            , Command.batch commands
+                            ( { loggedModel | users = updatedUsers }
+                            , Command.batch (logCmd :: commands)
                             )
 
                         Nothing ->
