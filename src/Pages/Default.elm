@@ -135,6 +135,22 @@ viewUtmBuilder model colors =
                 , Components.Button.secondary colors (Just ClearForm) "Clear"
                 ]
 
+            -- Error Display (for link creation errors)
+            , case model.clientFormError of
+                Just err ->
+                    div
+                        [ Attr.class "mt-4 p-4 rounded"
+                        , Attr.style "background-color" "rgba(239, 68, 68, 0.1)"
+                        , Attr.style "border" "1px solid #ef4444"
+                        , Attr.style "color" "#ef4444"
+                        ]
+                        [ div [ Attr.class "font-medium mb-1" ] [ text "Error creating link:" ]
+                        , div [ Attr.class "text-sm break-all" ] [ text err ]
+                        ]
+
+                Nothing ->
+                    text ""
+
             -- Result Display
             , case model.shortenResult of
                 Just result ->

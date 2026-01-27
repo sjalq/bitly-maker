@@ -392,13 +392,13 @@ update msg model =
                         in
                         if List.isEmpty sourcesToUse then
                             -- No sources to create links for - use the old single-link method with empty source
-                            ( { model | isShortening = True, shortenResult = Nothing }
+                            ( { model | isShortening = True, shortenResult = Nothing, clientFormError = Nothing }
                             , Effect.Lamdera.sendToBackend (ShortenUrlToBackend clientId model.destinationUrl utmParams)
                             )
 
                         else
                             -- Use multi-source creation
-                            ( { model | isShortening = True, shortenResult = Nothing }
+                            ( { model | isShortening = True, shortenResult = Nothing, clientFormError = Nothing }
                             , Effect.Lamdera.sendToBackend (CreateLinksToBackend clientId model.destinationUrl utmParams sourcesToUse tagsToUse)
                             )
 
@@ -414,6 +414,7 @@ update msg model =
                 , utmTerm = ""
                 , utmContent = ""
                 , shortenResult = Nothing
+                , clientFormError = Nothing
               }
             , Command.none
             )
