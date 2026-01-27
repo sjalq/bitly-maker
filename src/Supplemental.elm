@@ -138,11 +138,24 @@ Tries to extract useful info from Bitly error responses.
 formatApiError : String -> String
 formatApiError message =
     -- message format: "HTTP 400: {json body}"
-    case String.split ": " message of
-        [ statusPart, jsonBody ] ->
-            -- Try to extract "message" field from Bitly error JSON
-            -- Format: {"message":"INVALID_ARG_LONG_URL","description":"..."}
+    -- Only split on the FIRST ": " to preserve JSON content
+    let
+        -- Find position of first ": " (after "HTTP XXX")
+        splitIndex =
+            String.indexes ": " message
+                |> List.head
+    in
+    case splitIndex of
+        Just idx ->
             let
+                statusPart =
+                    String.left idx message
+
+                jsonBody =
+                    String.dropLeft (idx + 2) message
+
+                -- Try to extract "message" field from Bitly error JSON
+                -- Format: {"message":"INVALID_ARG_LONG_URL","description":"..."}
                 extractField : String -> String -> Maybe String
                 extractField fieldName json =
                     -- Simple extraction without full JSON parsing
@@ -175,11 +188,11 @@ formatApiError message =
                     statusPart ++ " - " ++ desc
 
                 ( Nothing, Nothing ) ->
-                    -- Couldn't parse, return full response
+                    -- Couldn't parse, show full response body
                     statusPart ++ " - " ++ jsonBody
 
-        _ ->
-            -- Unexpected format, return as-is
+        Nothing ->
+            -- No ": " found, return as-is
             message
 
 
