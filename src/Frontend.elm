@@ -656,7 +656,7 @@ updateFromBackend msg model =
             in
             ( { model
                 | isShortening = False
-                , shortenResults = allResults
+                , shortenResults = model.shortenResults ++ allResults  -- Accumulate as each result arrives
                 , linksForDashboard = newLinksForDashboard
                 , clientFormError = errorMsg
               }
