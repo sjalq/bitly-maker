@@ -219,7 +219,7 @@ update msg model =
                 Err httpErr ->
                     let
                         errMsg =
-                            "Bitly multi API error for " ++ source ++ " (" ++ utmUrl ++ "): " ++ httpErrorToString httpErr
+                            "Bitly multi API error for " ++ source ++ " (" ++ utmUrl ++ "): RAW=" ++ httpErrorToRawString httpErr ++ " FORMATTED=" ++ httpErrorToString httpErr
 
                         ( loggedModel, logCmd ) =
                             logErrorAndGetCmd errMsg model

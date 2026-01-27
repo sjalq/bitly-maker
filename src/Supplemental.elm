@@ -131,6 +131,28 @@ httpErrorToString error =
                 "Bad body: " ++ message
 
 
+{-| Returns the raw error message without any formatting.
+Useful for debugging.
+-}
+httpErrorToRawString : Http.Error -> String
+httpErrorToRawString error =
+    case error of
+        Http.BadUrl url ->
+            "BadUrl: " ++ url
+
+        Http.Timeout ->
+            "Timeout"
+
+        Http.NetworkError ->
+            "NetworkError"
+
+        Http.BadStatus statusCode ->
+            "BadStatus: " ++ String.fromInt statusCode
+
+        Http.BadBody message ->
+            "BadBody: " ++ message
+
+
 {-| Format API error responses for display.
 Input format: "HTTP 400: {json body}"
 Tries to extract useful info from Bitly error responses.
