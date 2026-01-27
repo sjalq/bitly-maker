@@ -748,7 +748,7 @@ shortenWithBitly clientIdStr apiKey longUrl =
                     ]
                 , url = "https://api-ssl.bitly.com/v4/shorten"
                 , body = Http.jsonBody body
-                , resolver = Http.stringResolver responseStringToResult
+                , resolver = Http.stringResolver responseStringToResultWithBody
                 , timeout = Just 30000
                 }
     in
@@ -773,7 +773,7 @@ shortenWithBitlyMulti connectionIdStr email linkId targetClientId destUrl source
                     ]
                 , url = "https://api-ssl.bitly.com/v4/shorten"
                 , body = Http.jsonBody body
-                , resolver = Http.stringResolver responseStringToResult
+                , resolver = Http.stringResolver responseStringToResultWithBody
                 , timeout = Just 30000
                 }
 

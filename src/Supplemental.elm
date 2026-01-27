@@ -44,6 +44,29 @@ responseStringToResult response =
             Ok body
 
 
+{-| Like responseStringToResult but preserves the response body in error cases.
+Use this for API calls where you want to see the actual error message from the server.
+-}
+responseStringToResultWithBody : Http.Response String -> Result Http.Error String
+responseStringToResultWithBody response =
+    case response of
+        Http.BadUrl_ url ->
+            Err (Http.BadUrl url)
+
+        Http.Timeout_ ->
+            Err Http.Timeout
+
+        Http.NetworkError_ ->
+            Err Http.NetworkError
+
+        Http.BadStatus_ metadata body ->
+            -- Include both status code and body in the error message
+            Err (Http.BadBody ("HTTP " ++ String.fromInt metadata.statusCode ++ ": " ++ body))
+
+        Http.GoodStatus_ _ body ->
+            Ok body
+
+
 handleHttpResponse : (body -> Result Http.Error value) -> Http.Response body -> Result Http.Error value
 handleHttpResponse decoder response =
     case response of
@@ -98,7 +121,66 @@ httpErrorToString error =
             "Bad status: " ++ String.fromInt statusCode
 
         Http.BadBody message ->
-            "Bad body: " ++ message
+            -- BadBody is used for both JSON decode errors AND API error responses
+            -- (via responseStringToResultWithBody which formats as "HTTP <code>: <body>")
+            if String.startsWith "HTTP " message then
+                -- This is an API error response - extract and format nicely
+                formatApiError message
+
+            else
+                "Bad body: " ++ message
+
+
+{-| Format API error responses for display.
+Input format: "HTTP 400: {json body}"
+Tries to extract useful info from Bitly error responses.
+-}
+formatApiError : String -> String
+formatApiError message =
+    -- message format: "HTTP 400: {json body}"
+    case String.split ": " message of
+        [ statusPart, jsonBody ] ->
+            -- Try to extract "message" field from Bitly error JSON
+            -- Format: {"message":"INVALID_ARG_LONG_URL","description":"..."}
+            let
+                extractField : String -> String -> Maybe String
+                extractField fieldName json =
+                    -- Simple extraction without full JSON parsing
+                    let
+                        searchPattern =
+                            "\"" ++ fieldName ++ "\":\""
+
+                        afterField =
+                            String.split searchPattern json
+                                |> List.drop 1
+                                |> List.head
+                    in
+                    afterField
+                        |> Maybe.map (String.split "\"" >> List.head >> Maybe.withDefault "")
+
+                bitlyMessage =
+                    extractField "message" jsonBody
+
+                bitlyDescription =
+                    extractField "description" jsonBody
+            in
+            case ( bitlyMessage, bitlyDescription ) of
+                ( Just msg, Just desc ) ->
+                    statusPart ++ " - " ++ msg ++ ": " ++ desc
+
+                ( Just msg, Nothing ) ->
+                    statusPart ++ " - " ++ msg
+
+                ( Nothing, Just desc ) ->
+                    statusPart ++ " - " ++ desc
+
+                ( Nothing, Nothing ) ->
+                    -- Couldn't parse, return full response
+                    statusPart ++ " - " ++ jsonBody
+
+        _ ->
+            -- Unexpected format, return as-is
+            message
 
 
 handleJsonResponse : Decode.Decoder a -> Http.Response String -> Result Http.Error a
