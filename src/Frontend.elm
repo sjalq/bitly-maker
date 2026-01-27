@@ -112,7 +112,7 @@ init url key =
             , utmCampaign = ""
             , utmTerm = ""
             , utmContent = ""
-            , shortenResult = Nothing
+            , shortenResults = []
             , isShortening = False
 
             -- Client management
@@ -392,13 +392,13 @@ update msg model =
                         in
                         if List.isEmpty sourcesToUse then
                             -- No sources to create links for - use the old single-link method with empty source
-                            ( { model | isShortening = True, shortenResult = Nothing, clientFormError = Nothing }
+                            ( { model | isShortening = True, shortenResults = [], clientFormError = Nothing }
                             , Effect.Lamdera.sendToBackend (ShortenUrlToBackend clientId model.destinationUrl utmParams)
                             )
 
                         else
                             -- Use multi-source creation
-                            ( { model | isShortening = True, shortenResult = Nothing, clientFormError = Nothing }
+                            ( { model | isShortening = True, shortenResults = [], clientFormError = Nothing }
                             , Effect.Lamdera.sendToBackend (CreateLinksToBackend clientId model.destinationUrl utmParams sourcesToUse tagsToUse)
                             )
 
@@ -413,7 +413,7 @@ update msg model =
                 , utmCampaign = ""
                 , utmTerm = ""
                 , utmContent = ""
-                , shortenResult = Nothing
+                , shortenResults = []
                 , clientFormError = Nothing
               }
             , Command.none
@@ -597,7 +597,7 @@ updateFromBackend msg model =
         ShortenUrlResult result ->
             case result of
                 Ok shortenResult ->
-                    ( { model | shortenResult = Just shortenResult, isShortening = False }, Command.none )
+                    ( { model | shortenResults = [ shortenResult ], isShortening = False }, Command.none )
 
                 Err errorMsg ->
                     ( { model | isShortening = False, clientFormError = Just errorMsg }, Command.none )
@@ -620,15 +620,15 @@ updateFromBackend msg model =
                         )
                         results
 
-                -- Get first successful result for the shortenResult display
-                firstSuccess =
-                    List.head successfulLinks
-                        |> Maybe.map
-                            (\link ->
-                                { utmUrl = link.fullUtmUrl
-                                , shortUrl = link.shortUrl
-                                }
-                            )
+                -- Convert ALL successful links to ShortenResults for display
+                allResults =
+                    List.map
+                        (\link ->
+                            { utmUrl = link.fullUtmUrl
+                            , shortUrl = link.shortUrl
+                            }
+                        )
+                        successfulLinks
 
                 -- Add to dashboard links
                 newLinksForDashboard =
@@ -656,7 +656,7 @@ updateFromBackend msg model =
             in
             ( { model
                 | isShortening = False
-                , shortenResult = firstSuccess
+                , shortenResults = allResults
                 , linksForDashboard = newLinksForDashboard
                 , clientFormError = errorMsg
               }

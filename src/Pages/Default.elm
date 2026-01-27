@@ -151,13 +151,12 @@ viewUtmBuilder model colors =
                 Nothing ->
                     text ""
 
-            -- Result Display
-            , case model.shortenResult of
-                Just result ->
-                    viewResult colors result
+            -- Result Display (all created links)
+            , if List.isEmpty model.shortenResults then
+                text ""
 
-                Nothing ->
-                    text ""
+              else
+                viewResults colors model.shortenResults
             ]
 
         -- Client Manager Section
@@ -407,6 +406,67 @@ viewClientOption selectedId client =
         , Attr.selected (selectedId == Just client.id)
         ]
         [ text client.name ]
+
+
+viewResults : Theme.Colors -> List ShortenResult -> Html FrontendMsg
+viewResults colors results =
+    div [ Attr.class "mt-6 space-y-4" ]
+        (List.indexedMap (viewResultItem colors (List.length results)) results)
+
+
+viewResultItem : Theme.Colors -> Int -> Int -> ShortenResult -> Html FrontendMsg
+viewResultItem colors total index result =
+    div
+        [ Attr.class "p-4 rounded"
+        , Attr.style "background-color" colors.inputBg
+        , Attr.style "border" ("1px solid " ++ colors.border)
+        ]
+        [ -- Header showing which source (for multi-source)
+          if total > 1 then
+            div
+                [ Attr.class "text-xs font-medium mb-3 pb-2"
+                , Attr.style "color" colors.mutedText
+                , Attr.style "border-bottom" ("1px solid " ++ colors.border)
+                ]
+                [ text ("Link " ++ String.fromInt (index + 1) ++ " of " ++ String.fromInt total) ]
+
+          else
+            text ""
+
+        -- Short URL
+        , div [ Attr.class "mb-3" ]
+            [ label
+                [ Attr.class "block text-xs font-medium mb-1"
+                , Attr.style "color" colors.mutedText
+                ]
+                [ text "Short URL (click to copy)" ]
+            , div
+                [ Attr.class "p-3 rounded cursor-pointer font-mono text-lg font-bold"
+                , Attr.style "background-color" colors.secondaryBg
+                , Attr.style "color" "#4ade80"
+                , Attr.style "border" "1px solid transparent"
+                , HE.onClick (CopyToClipboard result.shortUrl)
+                ]
+                [ text result.shortUrl ]
+            ]
+
+        -- Full UTM URL
+        , div []
+            [ label
+                [ Attr.class "block text-xs font-medium mb-1"
+                , Attr.style "color" colors.mutedText
+                ]
+                [ text "Full UTM URL (click to copy)" ]
+            , div
+                [ Attr.class "p-3 rounded cursor-pointer font-mono text-xs break-all"
+                , Attr.style "background-color" colors.secondaryBg
+                , Attr.style "color" colors.mutedText
+                , Attr.style "border" "1px solid transparent"
+                , HE.onClick (CopyToClipboard result.utmUrl)
+                ]
+                [ text result.utmUrl ]
+            ]
+        ]
 
 
 viewResult : Theme.Colors -> ShortenResult -> Html FrontendMsg

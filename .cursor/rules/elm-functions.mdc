@@ -221,19 +221,21 @@ alwaysApply: true
 20 view model colors
 35 viewLoginPrompt colors
 47 viewUtmBuilder model colors
-172 viewSourcesSection model colors maybeClient
-222 viewSourceCheckbox selectedSources colors source
-267 viewTagsSection model colors maybeClient
-297 viewTagCheckbox selectedTags colors tag
-332 viewCreateButton model colors maybeClient
-382 viewUtmInput colors labelText placeholder value onInput
-404 viewClientOption selectedId client
-413 viewResult colors result
-456 viewClientManager model colors
-546 viewClientItem model colors client
-680 viewSourceItem colors clientId source
-712 viewTagItem colors clientId tag
-733 viewBitlyHelp colors
+171 viewSourcesSection model colors maybeClient
+221 viewSourceCheckbox selectedSources colors source
+266 viewTagsSection model colors maybeClient
+296 viewTagCheckbox selectedTags colors tag
+331 viewCreateButton model colors maybeClient
+381 viewUtmInput colors labelText placeholder value onInput
+403 viewClientOption selectedId client
+412 viewResults colors results
+418 viewResultItem colors total index result
+473 viewResult colors result
+516 viewClientManager model colors
+606 viewClientItem model colors client
+740 viewSourceItem colors clientId source
+772 viewTagItem colors clientId tag
+793 viewBitlyHelp colors
 
 ## src/Pages/PageFrame.elm
 ### Pages.PageFrame

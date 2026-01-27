@@ -82,7 +82,7 @@ type alias FrontendModel =
     , utmCampaign : String
     , utmTerm : String
     , utmContent : String
-    , shortenResult : Maybe ShortenResult
+    , shortenResults : List ShortenResult
     , isShortening : Bool
 
     -- Client management
