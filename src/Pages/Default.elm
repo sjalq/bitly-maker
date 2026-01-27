@@ -586,6 +586,12 @@ viewClientItem model colors client =
                             ++ " tags)"
                         )
                     ]
+                , span
+                    [ Attr.class "text-xs font-mono ml-2 px-2 py-0.5 rounded"
+                    , Attr.style "color" colors.mutedText
+                    , Attr.style "background-color" colors.secondaryBg
+                    ]
+                    [ text ("API: " ++ client.apiKey) ]
                 ]
             , Components.Button.view
                 { variant = Components.Button.Danger
