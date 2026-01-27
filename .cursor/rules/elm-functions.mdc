@@ -30,15 +30,17 @@ alwaysApply: true
 42 subscriptions _
 47 init
 69 update msg model
-193 updateFromFrontend sessionId clientId msg model
-620 updateFromFrontendCheckingRights sessionId clientId msg model
-671 getUserFromCookie browserCookie model
-677 userToFrontend user
-688 handleEmailPasswordAuth browserCookie connectionId authMsg model
-702 buildUtmUrl baseUrl params
-735 shortenWithBitly clientIdStr apiKey longUrl
-760 shortenWithBitlyMulti connectionIdStr email linkId targetClientId destUrl source medium campaign term content tags apiKey longUrl
-803 bitlyResponseDecoder
+246 logAndGetCmd message model
+254 logErrorAndGetCmd message model
+260 updateFromFrontend sessionId clientId msg model
+694 updateFromFrontendCheckingRights sessionId clientId msg model
+745 getUserFromCookie browserCookie model
+751 userToFrontend user
+762 handleEmailPasswordAuth browserCookie connectionId authMsg model
+776 buildUtmUrl baseUrl params
+809 shortenWithBitly clientIdStr apiKey longUrl
+834 shortenWithBitlyMulti connectionIdStr email linkId targetClientId destUrl source medium campaign term content tags apiKey longUrl
+877 bitlyResponseDecoder
 
 ## src/Components/AuthControls.elm
 ### Components.AuthControls
@@ -117,16 +119,16 @@ alwaysApply: true
 73 init url key
 144 inits model route
 163 update msg model
-550 updateFromBackend msg model
-677 view model
-708 callbackForAuth0Auth model url key
-717 callbackForGoogleAuth model url key
-726 authCallbackCmd model url key
-743 initWithAuth url key
-761 updateEmailPasswordAuth authMsg model
-817 updateEmailPasswordForm msg model
-850 viewWithAuth model
-926 authUpdateFromBackend authToFrontendMsg model
+551 updateFromBackend msg model
+678 view model
+709 callbackForAuth0Auth model url key
+718 callbackForGoogleAuth model url key
+727 authCallbackCmd model url key
+744 initWithAuth url key
+762 updateEmailPasswordAuth authMsg model
+818 updateEmailPasswordForm msg model
+851 viewWithAuth model
+927 authUpdateFromBackend authToFrontendMsg model
 
 ## src/LamderaRPC.elm
 ### LamderaRPC
@@ -219,19 +221,19 @@ alwaysApply: true
 20 view model colors
 35 viewLoginPrompt colors
 47 viewUtmBuilder model colors
-156 viewSourcesSection model colors maybeClient
-206 viewSourceCheckbox selectedSources colors source
-251 viewTagsSection model colors maybeClient
-281 viewTagCheckbox selectedTags colors tag
-316 viewCreateButton model colors maybeClient
-366 viewUtmInput colors labelText placeholder value onInput
-388 viewClientOption selectedId client
-397 viewResult colors result
-440 viewClientManager model colors
-530 viewClientItem model colors client
-658 viewSourceItem colors clientId source
-690 viewTagItem colors clientId tag
-711 viewBitlyHelp colors
+172 viewSourcesSection model colors maybeClient
+222 viewSourceCheckbox selectedSources colors source
+267 viewTagsSection model colors maybeClient
+297 viewTagCheckbox selectedTags colors tag
+332 viewCreateButton model colors maybeClient
+382 viewUtmInput colors labelText placeholder value onInput
+404 viewClientOption selectedId client
+413 viewResult colors result
+456 viewClientManager model colors
+546 viewClientItem model colors client
+680 viewSourceItem colors clientId source
+712 viewTagItem colors clientId tag
+733 viewBitlyHelp colors
 
 ## src/Pages/PageFrame.elm
 ### Pages.PageFrame
@@ -306,30 +308,33 @@ alwaysApply: true
 ### Supplemental
 20 addProxy url
 29 responseStringToResult response
-48 handleHttpResponse decoder response
-67 responseToString response
-86 httpErrorToString error
-105 handleJsonResponse decoder response
-144 performNow msg
-149 getTime msg
-154 waitThenPerform ms msg
-165 at_ path decoder
-170 requiredAt_ path decoder
-175 optionalAt_ path valDecoder fallback decoder
-186 slackApiUrl
-191 sendSlackMessage token channel message
-229 formatFloat decimals value
-273 formatPrice currency price
-287 formatPercent percent
-303 formatPercentWithoutSign percent
-319 monthToString month
-359 monthToInt month
-399 formatDate time
-414 second
-419 minute
-424 hour
-429 day
-434 week
+51 responseStringToResultWithBody response
+71 handleHttpResponse decoder response
+90 responseToString response
+109 httpErrorToString error
+138 httpErrorToRawString error
+161 formatApiError message
+222 handleJsonResponse decoder response
+261 performNow msg
+266 getTime msg
+271 waitThenPerform ms msg
+282 at_ path decoder
+287 requiredAt_ path decoder
+292 optionalAt_ path valDecoder fallback decoder
+303 slackApiUrl
+308 sendSlackMessage token channel message
+346 formatFloat decimals value
+390 formatPrice currency price
+404 formatPercent percent
+420 formatPercentWithoutSign percent
+436 monthToString month
+476 monthToInt month
+516 formatDate time
+531 second
+536 minute
+541 hour
+546 day
+551 week
 
 ## src/SupplementalRPC.elm
 ### SupplementalRPC

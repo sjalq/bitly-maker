@@ -818,7 +818,7 @@ shortenWithBitly clientIdStr apiKey longUrl =
                 { method = "POST"
                 , headers =
                     [ Http.header "Authorization" ("Bearer " ++ apiKey)
-                    , Http.header "Content-Type" "application/json"
+                    -- Note: Content-Type is set automatically by Http.jsonBody
                     ]
                 , url = "https://api-ssl.bitly.com/v4/shorten"
                 , body = Http.jsonBody body
@@ -843,7 +843,7 @@ shortenWithBitlyMulti connectionIdStr email linkId targetClientId destUrl source
                 { method = "POST"
                 , headers =
                     [ Http.header "Authorization" ("Bearer " ++ apiKey)
-                    , Http.header "Content-Type" "application/json"
+                    -- Note: Content-Type is set automatically by Http.jsonBody
                     ]
                 , url = "https://api-ssl.bitly.com/v4/shorten"
                 , body = Http.jsonBody body
