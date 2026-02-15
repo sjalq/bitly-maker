@@ -447,7 +447,7 @@ viewResultItem colors total index result =
                 , Attr.style "border" "1px solid transparent"
                 , HE.onClick (CopyToClipboard result.shortUrl)
                 ]
-                [ text result.shortUrl ]
+                [ text (String.replace "https://" "" result.shortUrl) ]
             ]
 
         -- Full UTM URL
@@ -490,7 +490,7 @@ viewResult colors result =
                 , Attr.style "border" "1px solid transparent"
                 , HE.onClick (CopyToClipboard result.shortUrl)
                 ]
-                [ text result.shortUrl ]
+                [ text (String.replace "https://" "" result.shortUrl) ]
             ]
 
         -- Full UTM URL

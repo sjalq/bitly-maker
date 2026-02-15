@@ -187,7 +187,7 @@ viewLinkRow colors link =
                 [ Attr.class "cursor-pointer"
                 , HE.onClick (CopyToClipboard link.shortUrl)
                 ]
-                [ text link.shortUrl ]
+                [ text (String.replace "https://" "" link.shortUrl) ]
             ]
         , td [ Attr.class "px-4 py-3 text-sm", Attr.style "color" colors.mutedText ]
             [ div [ Attr.class "flex flex-wrap gap-1" ]
